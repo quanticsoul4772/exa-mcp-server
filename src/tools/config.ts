@@ -52,23 +52,3 @@ export const API_CONFIG = {
   DEFAULT_NUM_RESULTS: 3,
   DEFAULT_MAX_CHARACTERS: 3000
 } as const;
-
-/**
- * Global registry for all available tools.
- * Tools self-register by importing their modules.
- * 
- * @type {Record<string, ToolRegistry>}
- * 
- * @example
- * ```typescript
- * // In a tool file:
- * toolRegistry["my_tool"] = {
- *   name: "my_tool",
- *   description: "My tool description",
- *   schema: { ... },
- *   handler: async (args) => { ... },
- *   enabled: true
- * };
- * ```
- */
-export const toolRegistry: Record<string, ToolRegistry> = {}; 
