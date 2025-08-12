@@ -18,6 +18,13 @@ npm run test:watch    # Run tests in watch mode
 npm run test:coverage # Run tests with coverage report
 ```
 
+### Type Checking and Linting
+```bash
+npm run typecheck    # Check TypeScript types without building
+npm run lint         # Run ESLint to check code quality
+npm run lint:fix     # Run ESLint and auto-fix issues
+```
+
 ### Running the Server
 ```bash
 npm run inspector     # Test with MCP Inspector tool
