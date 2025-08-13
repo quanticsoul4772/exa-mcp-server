@@ -4,7 +4,6 @@
 
 A Model Context Protocol (MCP) server that enables AI assistants like Claude to use the Exa AI Search API for web searches.
 
-Demo video https://www.loom.com/share/ac676f29664e4c6cb33a2f0a63772038?sid=0e72619f-5bfc-415d-a705-63d326373f60
 
 
 ## What is MCP?
