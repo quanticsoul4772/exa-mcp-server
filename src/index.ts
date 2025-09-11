@@ -7,7 +7,7 @@ import { hideBin } from 'yargs/helpers';
 
 // Import the tool registry system
 import { toolRegistry } from "./tools/index.js";
-import { log } from "./utils/logger.js";
+import { log, logInfo, logError } from "./utils/logger.js";
 import { CLIArguments } from "./types/cli.js";
 
 dotenv.config();
@@ -36,7 +36,7 @@ class ExaServer {
     });
     this.specifiedTools = specifiedTools;
     
-    log("Server initialized");
+    logInfo("Server initialized");
   }
 
   private setupTools(): string[] {
@@ -69,19 +69,19 @@ class ExaServer {
       // Set up tools before connecting
       const registeredTools = this.setupTools();
       
-      log(`Starting Exa MCP server with ${registeredTools.length} tools: ${registeredTools.join(', ')}`);
+      logInfo(`Starting Exa MCP server with ${registeredTools.length} tools: ${registeredTools.join(', ')}`);
       
       const transport = new StdioServerTransport();
       
       // Handle connection errors
       transport.onerror = (error) => {
-        log(`Transport error: ${error.message}`);
+        logError(`Transport error: ${error.message}`);
       };
       
       await this.server.connect(transport);
-      log("Exa Search MCP server running on stdio");
+      logInfo("Exa Search MCP server running on stdio");
     } catch (error) {
-      log(`Server initialization error: ${error instanceof Error ? error.message : String(error)}`);
+      logError(`Server initialization error: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -134,7 +134,7 @@ async function main() {
     const server = new ExaServer(specifiedTools);
     await server.run();
   } catch (error) {
-    log(`Fatal server error: ${error instanceof Error ? error.message : String(error)}`);
+    logError(`Fatal server error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }

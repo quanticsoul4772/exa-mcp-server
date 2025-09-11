@@ -1,20 +1,27 @@
-import { log, createRequestLogger } from '../../utils/logger.js';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { log, createRequestLogger, LogLevel } from '../../utils/logger.js';
 
 describe('Logger', () => {
-  let consoleErrorSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpiedFunction<typeof console.error>;
+  const originalEnv = process.env;
 
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    // Set environment for predictable test behavior
+    process.env = { ...originalEnv, LOG_LEVEL: 'DEBUG', REDACT_LOGS: 'false' };
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+    process.env = originalEnv;
   });
 
   describe('log', () => {
-    it('should log messages to console.error with prefix', () => {
+    it('should log messages to console.error with timestamp and level', () => {
       log('Test message');
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[EXA-MCP-DEBUG] Test message');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[DEBUG\] \[EXA-MCP\] Test message/)
+      );
     });
   });
 
@@ -24,26 +31,26 @@ describe('Logger', () => {
       
       logger.log('Processing request');
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[EXA-MCP-DEBUG] [req-123] [exa_search] Processing request'
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[DEBUG\] \[EXA-MCP\] \[req-123\] \[exa_search\] Processing request/)
       );
     });
 
-    it('should log start messages with query', () => {
+    it('should log start messages with query at INFO level', () => {
       const logger = createRequestLogger('req-123', 'exa_search');
       
       logger.start('test query');
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[EXA-MCP-DEBUG] [req-123] [exa_search] Starting search for query: "test query"'
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[INFO\] \[EXA-MCP\] \[req-123\] \[exa_search\] Starting search for query: "test query"/)
       );
     });
 
-    it('should log error messages', () => {
+    it('should log error messages at ERROR level', () => {
       const logger = createRequestLogger('req-123', 'exa_search');
       const error = new Error('Test error');
       
       logger.error(error);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[EXA-MCP-DEBUG] [req-123] [exa_search] Error: Test error'
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[ERROR\] \[EXA-MCP\] \[req-123\] \[exa_search\] Error: Test error/)
       );
     });
 
@@ -52,16 +59,26 @@ describe('Logger', () => {
       
       logger.error('String error');
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[EXA-MCP-DEBUG] [req-123] [exa_search] Error: String error'
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[ERROR\] \[EXA-MCP\] \[req-123\] \[exa_search\] Error: String error/)
       );
     });
 
-    it('should log completion messages', () => {
+    it('should log completion messages at INFO level', () => {
       const logger = createRequestLogger('req-123', 'exa_search');
       
       logger.complete();
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[EXA-MCP-DEBUG] [req-123] [exa_search] Successfully completed request'
+        expect.stringMatching(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[INFO\] \[EXA-MCP\] \[req-123\] \[exa_search\] Successfully completed request/)
+      );
+    });
+
+    it('should redact sensitive data when REDACT_LOGS is true', () => {
+      process.env.REDACT_LOGS = 'true';
+      const logger = createRequestLogger('req-123', 'exa_search');
+      
+      logger.start('search for example.com');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[QUERY_REDACTED\]/)
       );
     });
   });

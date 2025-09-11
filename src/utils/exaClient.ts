@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
+import axiosRetry from "axios-retry";
 import { API_CONFIG } from "../tools/config.js";
-import { createRequestLogger } from "./logger.js";
+import { createRequestLogger, logWarn } from "./logger.js";
 import { ResponseFormatter } from "./formatter.js";
 
 /**
@@ -13,7 +14,7 @@ import { ResponseFormatter } from "./formatter.js";
  * @example
  * ```typescript
  * const client = createExaClient();
- * const response = await client.post('/search', requestData);
+ * const response = await client.post(API_CONFIG.ENDPOINTS.SEARCH, requestData);
  * ```
  */
 export function createExaClient(): AxiosInstance {
@@ -23,7 +24,7 @@ export function createExaClient(): AxiosInstance {
     throw new Error('EXA_API_KEY environment variable is not set');
   }
 
-  return axios.create({
+  const client = axios.create({
     baseURL: API_CONFIG.BASE_URL,
     headers: {
       'accept': 'application/json',
@@ -32,6 +33,26 @@ export function createExaClient(): AxiosInstance {
     },
     timeout: 25000
   });
+
+  // Configure retry with exponential backoff
+  axiosRetry(client, {
+    retries: 3,
+    retryDelay: (retryCount) => {
+      const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+      const jitter = Math.random() * 500; // Add up to 500ms jitter
+      return delay + jitter;
+    },
+    retryCondition: (error) => {
+      // Retry on network errors or 5xx status codes
+      return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+             (error.response?.status !== undefined && error.response.status >= 500);
+    },
+    onRetry: (retryCount, error, requestConfig) => {
+      logWarn(`Retrying request (attempt ${retryCount}/3): ${error.message}`);
+    }
+  });
+
+  return client;
 }
 
 /**

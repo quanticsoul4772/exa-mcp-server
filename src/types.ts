@@ -26,11 +26,11 @@ export interface ExaCrawlRequest {
 
 export interface ExaSearchResult {
   id: string;
-  title: string;
+  title?: string;
   url: string;
-  publishedDate: string;
-  author: string;
-  text: string;
+  publishedDate?: string;
+  author?: string;
+  text?: string;
   image?: string;
   favicon?: string;
   score?: number;

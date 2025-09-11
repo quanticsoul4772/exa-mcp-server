@@ -37,11 +37,27 @@ export function createSearchTool({
       const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const logger = createRequestLogger(requestId, name);
 
-      logger.start(args.query as string);
+      // Validate arguments against schema
+      const validationSchema = z.object(schema);
+      const validationResult = validationSchema.safeParse(args);
+      
+      if (!validationResult.success) {
+        logger.error(`Validation failed: ${validationResult.error.message}`);
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
+          }],
+          isError: true
+        };
+      }
+
+      const validatedArgs = validationResult.data;
+      logger.start(validatedArgs.query as string);
 
       try {
         const client = createExaClient();
-        const searchRequest = createRequest(args);
+        const searchRequest = createRequest(validatedArgs);
 
         logger.log(`Sending request to Exa API for ${name}`);
 
@@ -97,16 +113,32 @@ export function createCrawlTool({
             const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
             const logger = createRequestLogger(requestId, name);
 
-            logger.start(args.url as string);
+            // Validate arguments against schema
+            const validationSchema = z.object(schema);
+            const validationResult = validationSchema.safeParse(args);
+            
+            if (!validationResult.success) {
+                logger.error(`Validation failed: ${validationResult.error.message}`);
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
+                    }],
+                    isError: true
+                };
+            }
+
+            const validatedArgs = validationResult.data;
+            logger.start(validatedArgs.url as string);
 
             try {
                 const client = createExaClient();
-                const crawlRequest = createRequest(args);
+                const crawlRequest = createRequest(validatedArgs);
 
                 logger.log(`Sending request to Exa API for ${name}`);
 
                 const response = await client.post(
-                    '/contents',
+                    API_CONFIG.ENDPOINTS.CONTENTS,
                     crawlRequest
                 );
 
@@ -165,11 +197,27 @@ export function createCompetitorFinderTool({
             const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
             const logger = createRequestLogger(requestId, name);
 
-            logger.start(args.query as string);
+            // Validate arguments against schema
+            const validationSchema = z.object(schema);
+            const validationResult = validationSchema.safeParse(args);
+            
+            if (!validationResult.success) {
+                logger.error(`Validation failed: ${validationResult.error.message}`);
+                return {
+                    content: [{
+                        type: "text" as const,
+                        text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
+                    }],
+                    isError: true
+                };
+            }
+
+            const validatedArgs = validationResult.data;
+            logger.start(validatedArgs.query as string);
 
             try {
                 const client = createExaClient();
-                const searchRequest = createRequest(args);
+                const searchRequest = createRequest(validatedArgs);
 
                 logger.log(`Sending request to Exa API for ${name}`);
 
