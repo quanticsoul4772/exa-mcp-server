@@ -8,21 +8,44 @@ export enum LogLevel {
   DEBUG = 3
 }
 
+// Import config but handle potential circular dependency by deferring the import
+let configInstance: any = null;
+
+// Export for testing purposes
+export { configInstance };
+
 /**
- * Get the current log level from environment variable.
- * Defaults to ERROR in production, DEBUG in development.
+ * Get the current log level from configuration.
+ * Falls back to environment variables if config is not available (during bootstrap).
  */
 function getCurrentLogLevel(): LogLevel {
-  const envLevel = process.env.LOG_LEVEL?.toUpperCase();
-  
-  switch (envLevel) {
-    case 'ERROR': return LogLevel.ERROR;
-    case 'WARN': return LogLevel.WARN;
-    case 'INFO': return LogLevel.INFO;
-    case 'DEBUG': return LogLevel.DEBUG;
-    default:
-      // Default to ERROR in production, DEBUG otherwise
-      return process.env.NODE_ENV === 'production' ? LogLevel.ERROR : LogLevel.DEBUG;
+  // Try to get config, but handle case where we're being called during config initialization
+  try {
+    if (!configInstance) {
+      const { getConfig } = require('../config/index.js');
+      configInstance = getConfig();
+    }
+    
+    const level = configInstance.logging.level;
+    switch (level) {
+      case 'ERROR': return LogLevel.ERROR;
+      case 'WARN': return LogLevel.WARN;
+      case 'INFO': return LogLevel.INFO;
+      case 'DEBUG': return LogLevel.DEBUG;
+      default: return LogLevel.ERROR;
+    }
+  } catch {
+    // Fallback to environment variables during config bootstrap
+    const envLevel = process.env.LOG_LEVEL?.toUpperCase();
+    
+    switch (envLevel) {
+      case 'ERROR': return LogLevel.ERROR;
+      case 'WARN': return LogLevel.WARN;
+      case 'INFO': return LogLevel.INFO;
+      case 'DEBUG': return LogLevel.DEBUG;
+      default:
+        return process.env.NODE_ENV === 'production' ? LogLevel.ERROR : LogLevel.DEBUG;
+    }
   }
 }
 
@@ -30,6 +53,22 @@ function getCurrentLogLevel(): LogLevel {
  * Redact sensitive information from log messages.
  */
 function redactSensitiveData(message: string): string {
+  // Check if redaction is enabled via config (with fallback to env var)
+  let shouldRedact = true;
+  try {
+    if (configInstance?.logging?.redactLogs !== undefined) {
+      shouldRedact = configInstance.logging.redactLogs;
+    } else {
+      shouldRedact = process.env.REDACT_LOGS !== 'false';
+    }
+  } catch {
+    shouldRedact = process.env.REDACT_LOGS !== 'false';
+  }
+  
+  if (!shouldRedact) {
+    return message;
+  }
+  
   // Redact potential domains and URLs
   message = message.replace(/\b([a-zA-Z0-9.-]+\.(com|org|net|edu|gov|ai|io|co|xyz))/gi, '[DOMAIN_REDACTED]');
   
@@ -51,8 +90,7 @@ function logWithLevel(level: LogLevel, message: string): void {
   if (level <= currentLevel) {
     const levelName = LogLevel[level];
     const timestamp = new Date().toISOString();
-    const shouldRedact = process.env.REDACT_LOGS !== 'false';
-    const finalMessage = shouldRedact ? redactSensitiveData(message) : message;
+    const finalMessage = redactSensitiveData(message);
     
     console.error(`[${timestamp}] [${levelName}] [EXA-MCP] ${finalMessage}`);
   }

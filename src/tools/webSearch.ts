@@ -2,15 +2,17 @@ import { z } from "zod";
 import { createSearchTool } from "./tool-builder.js";
 import { API_CONFIG } from "./config.js";
 
-export const webSearchTool = createSearchTool({
-  name: "exa_search",
-  description: "Search the web using Exa AI - performs real-time web searches and can scrape content from specific URLs. Supports configurable result counts and returns the content from the most relevant websites.",
-  schema: {
-    query: z.string().describe("Search query"),
-    numResults: z.coerce.number().optional().describe("Number of search results to return (default: 5)")
-  },
-  enabled: true,
-  createRequest: ({ query, numResults }) => ({
+const webSearchSchema = z.object({
+  query: z.string().describe("Search query"),
+  numResults: z.coerce.number().optional().describe("Number of search results to return (default: 5)")
+});
+
+export const webSearchTool = createSearchTool(
+  "exa_search",
+  "Search the web using Exa AI - performs real-time web searches and can scrape content from specific URLs. Supports configurable result counts and returns the content from the most relevant websites.",
+  webSearchSchema,
+  true,
+  ({ query, numResults }) => ({
     query,
     type: "auto",
     numResults: numResults || API_CONFIG.DEFAULT_NUM_RESULTS,
@@ -21,4 +23,4 @@ export const webSearchTool = createSearchTool({
       livecrawl: 'always' as const
     }
   })
-});
+);

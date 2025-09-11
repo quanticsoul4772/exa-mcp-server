@@ -2,85 +2,142 @@ import { z } from "zod";
 import { API_CONFIG, ToolRegistry } from "./config.js";
 import { ExaCrawlRequest, ExaSearchRequest, ExaSearchResponse } from "../types.js";
 import { createExaClient, handleExaError } from "../utils/exaClient.js";
-import { createRequestLogger } from "../utils/logger.js";
+import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
+import { globalCache } from "../utils/cache.js";
 
-interface CreateToolParams {
+/**
+ * Tool configuration types for different API endpoints
+ */
+type ToolConfig<T extends z.ZodObject<any>, TRequest, TResponse> = {
   name: string;
   description: string;
-  schema: z.ZodRawShape;
+  schema: T;
   enabled: boolean;
-  createRequest: (args: Record<string, any>) => ExaSearchRequest;
+  endpoint: string;
+  createRequest: (args: z.infer<T>) => TRequest;
+  formatResponse: (data: TResponse, toolName: string) => string;
+  getStartContext: (args: z.infer<T>) => string;
+};
+
+/**
+ * Type helper to check if a response has results array
+ */
+type ResponseWithResults = {
+  results: unknown[];
+};
+
+/**
+ * Type guard to check if response data has results array
+ */
+function hasResults(data: unknown): data is ResponseWithResults {
+  return data !== null && 
+         typeof data === 'object' && 
+         'results' in data && 
+         Array.isArray((data as ResponseWithResults).results);
 }
 
-interface CreateCrawlToolParams {
-    name: string;
-    description: string;
-    schema: z.ZodRawShape;
-    enabled: boolean;
-    createRequest: (args: Record<string, any>) => ExaCrawlRequest;
-}
-
-export function createSearchTool({
-  name,
-  description,
-  schema,
-  enabled,
-  createRequest,
-}: CreateToolParams): ToolRegistry {
+/**
+ * Unified tool creator that handles all tool types with proper type inference
+ * Provides strong typing during tool creation while maintaining compatibility with ToolRegistry
+ * 
+ * @template T - Zod schema type
+ * @template TRequest - API request type
+ * @template TResponse - API response type
+ * @param config Tool configuration object
+ * @returns ToolRegistry instance compatible with MCP server
+ */
+export function createTool<
+  T extends z.ZodObject<any>,
+  TRequest,
+  TResponse
+>(
+  config: ToolConfig<T, TRequest, TResponse>
+): ToolRegistry {
   return {
-    name,
-    description,
-    schema,
-    enabled,
+    name: config.name,
+    description: config.description,
+    schema: config.schema,
+    enabled: config.enabled,
     handler: async (args, extra) => {
-      const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const logger = createRequestLogger(requestId, name);
+      const requestId = generateRequestId();
+      const logger = createRequestLogger(requestId, config.name);
 
-      // Validate arguments against schema
-      const validationSchema = z.object(schema);
-      const validationResult = validationSchema.safeParse(args);
+      // Validate arguments with strict parsing - this provides runtime type safety
+      const validationResult = config.schema.safeParse(args);
       
       if (!validationResult.success) {
-        logger.error(`Validation failed: ${validationResult.error.message}`);
+        logger.error(`Validation failed: ${JSON.stringify(validationResult.error.issues)}`);
         return {
           content: [{
             type: "text" as const,
-            text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
+            text: `Invalid arguments for ${config.name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
           }],
           isError: true
         };
       }
 
-      const validatedArgs = validationResult.data;
-      logger.start(validatedArgs.query as string);
+      // After validation, we know args conform to z.infer<T>
+      const validatedArgs = validationResult.data as z.infer<T>;
+      logger.start(config.getStartContext(validatedArgs));
 
       try {
+        // Check cache first
+        const cachedResponse = globalCache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
+        if (cachedResponse) {
+          logger.log(`Cache hit for ${config.name}`);
+          const formattedResponse = config.formatResponse(cachedResponse, config.name);
+          const result = {
+            content: [{
+              type: "text" as const,
+              text: formattedResponse
+            }]
+          };
+          logger.complete();
+          return result;
+        }
+
         const client = createExaClient();
-        const searchRequest = createRequest(validatedArgs);
+        const request = config.createRequest(validatedArgs);
 
-        logger.log(`Sending request to Exa API for ${name}`);
+        logger.log(`Sending request to Exa API for ${config.name}`);
 
-        const response = await client.post<ExaSearchResponse>(
-          API_CONFIG.ENDPOINTS.SEARCH,
-          searchRequest
+        const response = await client.post<TResponse>(
+          config.endpoint,
+          request
         );
 
-        logger.log(`Received response from Exa API for ${name}`);
+        // Cache the response data
+        globalCache.set(config.endpoint, request, response.data);
 
-        if (!response.data || !response.data.results) {
-          logger.log(`Warning: Empty or invalid response from Exa API for ${name}`);
+        logger.log(`Received response from Exa API for ${config.name}`);
+
+        // Handle empty responses based on response type
+        if (!response.data) {
+          logger.log(`Warning: Empty response from Exa API for ${config.name}`);
           return {
             content: [{
               type: "text" as const,
-              text: `No results found for ${name}. Please try a different query.`
+              text: `No results found for ${config.name}. Please try a different query.`
             }]
           };
         }
 
-        logger.log(`Found ${response.data.results.length} results for ${name}`);
+        // Check for results array (search responses) - use proper type guard
+        if (hasResults(response.data)) {
+          if (response.data.results.length === 0) {
+            logger.log(`Warning: No results found for ${config.name}`);
+            return {
+              content: [{
+                type: "text" as const,
+                text: `No results found for ${config.name}. Please try a different query.`
+              }]
+            };
+          }
+          logger.log(`Found ${response.data.results.length} results for ${config.name}`);
+        }
 
-        const formattedResponse = ResponseFormatter.formatSearchResponse(response.data, name);
+        const formattedResponse = config.formatResponse(response.data, config.name);
         const result = {
           content: [{
             type: "text" as const,
@@ -91,168 +148,92 @@ export function createSearchTool({
         logger.complete();
         return result;
       } catch (error) {
-        return handleExaError(error, name, logger);
+        return handleExaError(error, config.name, logger);
       }
     },
   };
 }
 
-export function createCrawlTool({
+/**
+ * Helper function to extract query from validated args safely
+ */
+function getQueryFromArgs<T extends Record<string, any>>(args: T): string {
+  return 'query' in args && typeof args.query === 'string' ? args.query : 'search request';
+}
+
+/**
+ * Helper function to extract URL from validated args safely
+ */
+function getUrlFromArgs<T extends Record<string, any>>(args: T): string {
+  return 'url' in args && typeof args.url === 'string' ? args.url : 'crawl request';
+}
+
+/**
+ * Helper function to create search-based tools (web search, research papers, etc.)
+ * Provides full type safety during tool creation
+ */
+export function createSearchTool<T extends z.ZodObject<any>>(
+  name: string,
+  description: string,
+  schema: T,
+  enabled: boolean,
+  createRequest: (args: z.infer<T>) => ExaSearchRequest,
+  formatResponse?: (data: ExaSearchResponse, toolName: string) => string
+): ToolRegistry {
+  return createTool({
     name,
     description,
     schema,
     enabled,
+    endpoint: API_CONFIG.ENDPOINTS.SEARCH,
     createRequest,
-    }: CreateCrawlToolParams): ToolRegistry {
-    return {
-        name,
-        description,
-        schema,
-        enabled,
-        handler: async (args, extra) => {
-            const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-            const logger = createRequestLogger(requestId, name);
-
-            // Validate arguments against schema
-            const validationSchema = z.object(schema);
-            const validationResult = validationSchema.safeParse(args);
-            
-            if (!validationResult.success) {
-                logger.error(`Validation failed: ${validationResult.error.message}`);
-                return {
-                    content: [{
-                        type: "text" as const,
-                        text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
-                    }],
-                    isError: true
-                };
-            }
-
-            const validatedArgs = validationResult.data;
-            logger.start(validatedArgs.url as string);
-
-            try {
-                const client = createExaClient();
-                const crawlRequest = createRequest(validatedArgs);
-
-                logger.log(`Sending request to Exa API for ${name}`);
-
-                const response = await client.post(
-                    API_CONFIG.ENDPOINTS.CONTENTS,
-                    crawlRequest
-                );
-
-                logger.log(`Received response from Exa API for ${name}`);
-
-                if (!response.data || !response.data.results || response.data.results.length === 0) {
-                    logger.log(`Warning: Empty or invalid response from Exa API for ${name}`);
-                    return {
-                        content: [{
-                            type: "text" as const,
-                            text: `No results found for ${name}. Please try a different query.`
-                        }]
-                    };
-                }
-
-                logger.log(`Found ${response.data.results.length} results for ${name}`);
-
-                const formattedResponse = ResponseFormatter.formatCrawlResponse(response.data.results);
-                const result = {
-                    content: [{
-                        type: "text" as const,
-                        text: formattedResponse
-                    }]
-                };
-
-                logger.complete();
-                return result;
-            } catch (error) {
-                return handleExaError(error, name, logger);
-            }
-        },
-    };
+    formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
+    getStartContext: (args) => getQueryFromArgs(args)
+  });
 }
 
-interface CreateCompetitorFinderToolParams {
-    name: string;
-    description: string;
-    schema: z.ZodRawShape;
-    enabled: boolean;
-    createRequest: (args: Record<string, any>) => ExaSearchRequest;
-}
-
-export function createCompetitorFinderTool({
+/**
+ * Helper function to create crawl-based tools (URL content extraction)
+ * Provides full type safety during tool creation
+ */
+export function createCrawlTool<T extends z.ZodObject<any>>(
+  name: string,
+  description: string,
+  schema: T,
+  enabled: boolean,
+  createRequest: (args: z.infer<T>) => ExaCrawlRequest
+): ToolRegistry {
+  return createTool({
     name,
     description,
     schema,
     enabled,
+    endpoint: API_CONFIG.ENDPOINTS.CONTENTS,
     createRequest,
-    }: CreateCompetitorFinderToolParams): ToolRegistry {
-    return {
-        name,
-        description,
-        schema,
-        enabled,
-        handler: async (args, extra) => {
-            const requestId = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-            const logger = createRequestLogger(requestId, name);
+    formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCrawlResponse(data.results),
+    getStartContext: (args) => getUrlFromArgs(args)
+  });
+}
 
-            // Validate arguments against schema
-            const validationSchema = z.object(schema);
-            const validationResult = validationSchema.safeParse(args);
-            
-            if (!validationResult.success) {
-                logger.error(`Validation failed: ${validationResult.error.message}`);
-                return {
-                    content: [{
-                        type: "text" as const,
-                        text: `Invalid arguments for ${name}: ${validationResult.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`
-                    }],
-                    isError: true
-                };
-            }
-
-            const validatedArgs = validationResult.data;
-            logger.start(validatedArgs.query as string);
-
-            try {
-                const client = createExaClient();
-                const searchRequest = createRequest(validatedArgs);
-
-                logger.log(`Sending request to Exa API for ${name}`);
-
-                const response = await client.post<ExaSearchResponse>(
-                    API_CONFIG.ENDPOINTS.SEARCH,
-                    searchRequest
-                );
-
-                logger.log(`Received response from Exa API for ${name}`);
-
-                if (!response.data || !response.data.results) {
-                    logger.log(`Warning: Empty or invalid response from Exa API for ${name}`);
-                    return {
-                        content: [{
-                            type: "text" as const,
-                            text: `No results found for ${name}. Please try a different query.`
-                        }]
-                    };
-                }
-
-                logger.log(`Found ${response.data.results.length} results for ${name}`);
-
-                const formattedResponse = ResponseFormatter.formatCompetitorResponse(response.data.results);
-                const result = {
-                    content: [{
-                        type: "text" as const,
-                        text: formattedResponse
-                    }]
-                };
-
-                logger.complete();
-                return result;
-            } catch (error) {
-                return handleExaError(error, name, logger);
-            }
-        },
-    };
+/**
+ * Helper function to create competitor finder tools
+ * Provides full type safety during tool creation
+ */
+export function createCompetitorFinderTool<T extends z.ZodObject<any>>(
+  name: string,
+  description: string,
+  schema: T,
+  enabled: boolean,
+  createRequest: (args: z.infer<T>) => ExaSearchRequest
+): ToolRegistry {
+  return createTool({
+    name,
+    description,
+    schema,
+    enabled,
+    endpoint: API_CONFIG.ENDPOINTS.SEARCH,
+    createRequest,
+    formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCompetitorResponse(data.results),
+    getStartContext: (args) => getQueryFromArgs(args)
+  });
 }

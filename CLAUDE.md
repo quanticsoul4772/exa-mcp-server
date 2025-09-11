@@ -67,7 +67,7 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
 - **Zod schemas**: Type-safe parameter validation for all tools including URL validation
 - **Async handlers**: All tool handlers return promises for non-blocking operations
 - **Centralized error handling**: Shared utilities in `exaClient.ts` for consistent error handling
-- **Environment configuration**: Uses dotenv for API keys with proper validation
+- **Centralized configuration**: Uses `src/config/index.ts` with Zod validation, fail-fast behavior, and comprehensive environment variable management
 - **ESM modules**: Uses ES modules with `.js` extensions in imports
 
 ### Adding New Tools
@@ -90,4 +90,6 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
 - The server communicates via stdio with MCP clients
 - Tool names must be unique and avoid conflicts with Claude's built-in tools
 - All responses are formatted as single-line text to prevent Claude UI issues
-- API key must be set as `EXA_API_KEY` environment variable
+- Configuration is validated at startup with fail-fast behavior - see `.env.example` for all supported environment variables
+- API key must be set as `EXA_API_KEY` environment variable (required)
+- Configuration uses centralized validation with detailed error messages for missing or invalid settings

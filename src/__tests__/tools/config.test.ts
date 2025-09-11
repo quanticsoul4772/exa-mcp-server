@@ -1,3 +1,26 @@
+// Mock pinoLogger before importing tools
+jest.mock('../../utils/pinoLogger.js', () => ({
+  createRequestLogger: jest.fn(() => ({
+    start: jest.fn(),
+    log: jest.fn(),
+    error: jest.fn(),
+    complete: jest.fn()
+  })),
+  generateRequestId: jest.fn(() => 'test-request-id'),
+  structuredLogger: {
+    info: jest.fn(),
+    debug: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    child: jest.fn(() => ({
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    }))
+  }
+}));
+
 import { toolRegistry, API_CONFIG } from '../../tools/index.js';
 
 describe('Tool Configuration', () => {

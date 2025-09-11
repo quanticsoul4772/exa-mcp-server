@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import axiosRetry from "axios-retry";
-import { API_CONFIG } from "../tools/config.js";
-import { createRequestLogger, logWarn } from "./logger.js";
+import { getConfig } from "../config/index.js";
+import { createRequestLogger, logWarn, generateRequestId } from "./pinoLogger.js";
 import { ResponseFormatter } from "./formatter.js";
 
 /**
@@ -18,25 +18,21 @@ import { ResponseFormatter } from "./formatter.js";
  * ```
  */
 export function createExaClient(): AxiosInstance {
-  const apiKey = process.env.EXA_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('EXA_API_KEY environment variable is not set');
-  }
+  const config = getConfig();
 
   const client = axios.create({
-    baseURL: API_CONFIG.BASE_URL,
+    baseURL: config.exa.baseUrl,
     headers: {
       'accept': 'application/json',
       'content-type': 'application/json',
-      'x-api-key': apiKey
+      'x-api-key': config.exa.apiKey
     },
-    timeout: 25000
+    timeout: config.exa.timeout
   });
 
   // Configure retry with exponential backoff
   axiosRetry(client, {
-    retries: 3,
+    retries: config.exa.retries,
     retryDelay: (retryCount) => {
       const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
       const jitter = Math.random() * 500; // Add up to 500ms jitter
@@ -133,7 +129,7 @@ export function createExaRequestHandler<TRequest, TResponse>(
     requestData: TRequest,
     formatResponse: (response: TResponse) => string
   ): Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> => {
-    const requestId = `${toolName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const requestId = generateRequestId();
     const logger = createRequestLogger(requestId, toolName);
     
     logger.start(JSON.stringify(requestData));

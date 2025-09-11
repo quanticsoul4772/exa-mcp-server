@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import dotenv from "dotenv";
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { z } from 'zod';
 
+// Import configuration first to validate environment variables
+import { getConfig } from "./config/index.js";
 // Import the tool registry system
 import { toolRegistry } from "./tools/index.js";
-import { log, logInfo, logError } from "./utils/logger.js";
+import { log, logInfo, logError } from "./utils/pinoLogger.js";
 import { CLIArguments } from "./types/cli.js";
-
-dotenv.config();
 
 /**
  * Exa AI Web Search MCP Server
@@ -51,10 +51,13 @@ class ExaServer {
         : tool.enabled;
       
       if (shouldRegister) {
+        // Convert ZodObject to ZodRawShape for MCP server compatibility
+        const schema = tool.schema instanceof z.ZodObject ? tool.schema.shape : tool.schema;
+        
         this.server.tool(
           tool.name,
           tool.description,
-          tool.schema,
+          schema,
           tool.handler
         );
         registeredTools.push(toolId);
@@ -125,11 +128,9 @@ async function main() {
       process.exit(0);
     }
 
-    // Check for API key after handling list-tools to allow listing without a key
-    const API_KEY = process.env.EXA_API_KEY;
-    if (!API_KEY) {
-      throw new Error("EXA_API_KEY environment variable is required");
-    }
+    // Validate configuration early (after handling list-tools to allow listing without a key)
+    const config = getConfig();
+    logInfo(`Configuration loaded successfully for environment: ${config.environment.nodeEnv}`);
 
     const server = new ExaServer(specifiedTools);
     await server.run();
