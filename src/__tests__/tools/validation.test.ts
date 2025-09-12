@@ -1,6 +1,11 @@
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { z } from 'zod';
-import { createSearchTool } from '../../tools/tool-builder.js';
+
+// Set up module isolation
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.resetModules();
+});
 
 // Mock the exaClient module at the top level
 jest.mock('../../utils/pinoLogger.js', () => ({
@@ -26,8 +31,8 @@ jest.mock('../../utils/pinoLogger.js', () => ({
 }));
 
 jest.mock('../../utils/exaClient.js', () => ({
-  createExaClient: () => ({
-    post: jest.fn().mockResolvedValue({
+  createExaClient: jest.fn(() => ({
+    post: jest.fn(() => Promise.resolve({
       data: {
         results: [{
           id: '1',
@@ -38,15 +43,69 @@ jest.mock('../../utils/exaClient.js', () => ({
           text: 'Test content'
         }]
       }
-    })
-  }),
+    }))
+  })),
   handleExaError: jest.fn()
 }));
 
+// Mock config module
+jest.mock('../../config/index.js', () => ({
+  getConfig: jest.fn(() => ({
+    exa: {
+      apiKey: 'test-api-key',
+      baseUrl: 'https://api.exa.ai',
+      timeout: 25000,
+      retries: 3
+    },
+    tools: {
+      defaultNumResults: 3,
+      defaultMaxCharacters: 3000
+    },
+    cache: {
+      enabled: false,
+      maxSize: 100,
+      ttlMinutes: 5
+    },
+    environment: {
+      nodeEnv: 'test'
+    }
+  })),
+  clearConfigCache: jest.fn()
+}));
+
+// Mock cache module
+jest.mock('../../utils/cache.js', () => ({
+  getGlobalCache: jest.fn(() => ({
+    get: jest.fn(() => null),
+    set: jest.fn(),
+    clear: jest.fn(),
+    getStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0, hitRate: 0 })),
+    isEnabled: jest.fn(() => false),
+    setEnabled: jest.fn()
+  })),
+  resetGlobalCache: jest.fn()
+}));
+
+// Import after mocks are set
+import { createSearchTool } from '../../tools/tool-builder.js';
+
 describe('Tool Runtime Validation', () => {
+  const originalEnv = process.env;
+  
   beforeEach(() => {
-    // Mock environment for tests to avoid config validation errors
+    // Reset environment
+    process.env = { ...originalEnv };
+    process.env.NODE_ENV = 'test';
     process.env.EXA_API_KEY = 'test-api-key-for-validation-tests';
+    
+    // Clear all mocks
+    jest.clearAllMocks();
+  });
+  
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.clearAllMocks();
+    jest.resetModules();
   });
   it('should validate arguments and return error for invalid input', async () => {
     const testSchema = z.object({

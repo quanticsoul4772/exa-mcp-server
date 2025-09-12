@@ -28,6 +28,10 @@ const config: Config = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  // Clear mocks between every test to ensure isolation
+  clearMocks: true,
+  // Reset module registry between every test
+  resetModules: true,
 };
 
 export default config;

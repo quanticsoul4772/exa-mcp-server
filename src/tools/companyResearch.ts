@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createSearchTool } from "./tool-builder.js";
-import { API_CONFIG } from "./config.js";
+import { getConfig } from "../config/index.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 
 const companyResearchSchema = z.object({
@@ -14,20 +14,23 @@ export const companyResearchTool = createSearchTool(
   "Research companies using Exa AI - performs targeted searches of company websites to gather comprehensive information about businesses. Returns detailed information from company websites including about pages, pricing, FAQs, blogs, and other relevant content. Specify the company URL and optionally target specific sections of their website.",
   companyResearchSchema,
   false,
-  ({ query, subpages, subpageTarget }) => ({
-    query,
-    category: "company",
-    includeDomains: [query],
-    type: "auto",
-    numResults: 1,
-    contents: {
-      text: {
-        maxCharacters: API_CONFIG.DEFAULT_MAX_CHARACTERS
-      },
-      livecrawl: 'always' as const,
-      subpages: subpages || 10,
-      subpageTarget: subpageTarget
-    }
-  }),
-  (data, toolName) => ResponseFormatter.formatCompanyResponse(data.results)
+  ({ query, subpages, subpageTarget }) => {
+    const config = getConfig();
+    return {
+      query,
+      category: "company",
+      includeDomains: [query],
+      type: "auto",
+      numResults: 1,
+      contents: {
+        text: {
+          maxCharacters: config.tools.defaultMaxCharacters
+        },
+        livecrawl: 'always' as const,
+        subpages: subpages || 10,
+        subpageTarget: subpageTarget
+      }
+    };
+  },
+  (_data, _toolName) => ResponseFormatter.formatCompanyResponse(_data.results)
 );

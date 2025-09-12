@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { API_CONFIG, ToolRegistry } from "./config.js";
+import { ToolRegistry } from "./config.js";
 import { ExaCrawlRequest, ExaSearchRequest, ExaSearchResponse } from "../types.js";
 import { createExaClient, handleExaError } from "../utils/exaClient.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
-import { globalCache } from "../utils/cache.js";
+import { getGlobalCache } from "../utils/cache.js";
+import { getConfig } from "../config/index.js";
 
 /**
  * Tool configuration types for different API endpoints
@@ -82,8 +83,11 @@ export function createTool<
       logger.start(config.getStartContext(validatedArgs));
 
       try {
+        // Get cache instance using lazy initialization
+        const cache = getGlobalCache();
+        
         // Check cache first
-        const cachedResponse = globalCache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
+        const cachedResponse = cache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
         if (cachedResponse) {
           logger.log(`Cache hit for ${config.name}`);
           const formattedResponse = config.formatResponse(cachedResponse, config.name);
@@ -108,7 +112,7 @@ export function createTool<
         );
 
         // Cache the response data
-        globalCache.set(config.endpoint, request, response.data);
+        cache.set(config.endpoint, request, response.data);
 
         logger.log(`Received response from Exa API for ${config.name}`);
 
@@ -185,7 +189,7 @@ export function createSearchTool<T extends z.ZodObject<any>>(
     description,
     schema,
     enabled,
-    endpoint: API_CONFIG.ENDPOINTS.SEARCH,
+    endpoint: '/search', // Using the API endpoint directly
     createRequest,
     formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
     getStartContext: (args) => getQueryFromArgs(args)
@@ -208,7 +212,7 @@ export function createCrawlTool<T extends z.ZodObject<any>>(
     description,
     schema,
     enabled,
-    endpoint: API_CONFIG.ENDPOINTS.CONTENTS,
+    endpoint: '/contents', // Using the API endpoint directly
     createRequest,
     formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCrawlResponse(data.results),
     getStartContext: (args) => getUrlFromArgs(args)
@@ -231,7 +235,7 @@ export function createCompetitorFinderTool<T extends z.ZodObject<any>>(
     description,
     schema,
     enabled,
-    endpoint: API_CONFIG.ENDPOINTS.SEARCH,
+    endpoint: '/search', // Using the API endpoint directly
     createRequest,
     formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCompetitorResponse(data.results),
     getStartContext: (args) => getQueryFromArgs(args)

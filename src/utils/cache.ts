@@ -177,9 +177,49 @@ export class RequestCache {
 }
 
 /**
- * Global cache instance
+ * Global cache instance with lazy initialization
+ * This prevents issues during testing where config validation might fail
  */
-export const globalCache = new RequestCache();
+let _globalCache: RequestCache | null = null;
+
+/**
+ * Get the global cache instance (lazy initialization)
+ * Creates the cache on first access to avoid initialization issues during testing
+ */
+export function getGlobalCache(): RequestCache {
+  if (!_globalCache) {
+    try {
+      _globalCache = new RequestCache();
+    } catch (error) {
+      // If config validation fails (e.g., in tests), create a disabled cache
+      _globalCache = new RequestCache({ enabled: false });
+    }
+  }
+  return _globalCache;
+}
+
+/**
+ * Reset the global cache instance (useful for testing)
+ */
+export function resetGlobalCache(): void {
+  if (_globalCache) {
+    _globalCache.clear();
+  }
+  _globalCache = null;
+}
+
+/**
+ * Export for backward compatibility
+ * @deprecated Use getGlobalCache() instead for better error handling
+ */
+export const globalCache = {
+  get: <T>(endpoint: string, requestData: any): T | null => getGlobalCache().get(endpoint, requestData),
+  set: <T>(endpoint: string, requestData: any, responseData: T): void => getGlobalCache().set(endpoint, requestData, responseData),
+  clear: (): void => getGlobalCache().clear(),
+  getStats: (): CacheStats => getGlobalCache().getStats(),
+  isEnabled: (): boolean => getGlobalCache().isEnabled(),
+  setEnabled: (enabled: boolean): void => getGlobalCache().setEnabled(enabled)
+};
 
 /**
  * Utility function to create a cache-aware request wrapper
@@ -187,11 +227,13 @@ export const globalCache = new RequestCache();
 export function createCachedRequest<TRequest, TResponse>(
   requestFunction: (data: TRequest) => Promise<TResponse>,
   endpoint: string,
-  cache: RequestCache = globalCache
+  cache?: RequestCache
 ) {
   return async (requestData: TRequest): Promise<TResponse> => {
+    const cacheInstance = cache || getGlobalCache();
+    
     // Try to get from cache first
-    const cached = cache.get<TResponse>(endpoint, requestData);
+    const cached = cacheInstance.get<TResponse>(endpoint, requestData);
     if (cached) {
       return cached;
     }
@@ -200,7 +242,7 @@ export function createCachedRequest<TRequest, TResponse>(
     const response = await requestFunction(requestData);
     
     // Cache the response
-    cache.set(endpoint, requestData, response);
+    cacheInstance.set(endpoint, requestData, response);
     
     return response;
   };

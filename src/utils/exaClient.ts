@@ -14,7 +14,7 @@ import { ResponseFormatter } from "./formatter.js";
  * @example
  * ```typescript
  * const client = createExaClient();
- * const response = await client.post(API_CONFIG.ENDPOINTS.SEARCH, requestData);
+ * const response = await client.post('/search', requestData);
  * ```
  */
 export function createExaClient(): AxiosInstance {

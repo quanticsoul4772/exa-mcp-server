@@ -1,18 +1,37 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { validateConfig, clearConfigCache, getConfig } from '../../config/index.js';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
+// We need to isolate the config module for each test
 describe('Configuration Management', () => {
   const originalEnv = process.env;
+  let validateConfig: any;
+  let clearConfigCache: any;
+  let getConfig: any;
   
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset environment
     process.env = { ...originalEnv };
+    process.env.NODE_ENV = 'test';
+    
+    // Clear module cache to get fresh imports
+    jest.resetModules();
+    
+    // Dynamically import to get fresh module instances
+    const configModule = await import('../../config/index.js');
+    validateConfig = configModule.validateConfig;
+    clearConfigCache = configModule.clearConfigCache;
+    getConfig = configModule.getConfig;
+    
+    // Clear config cache
     clearConfigCache();
   });
   
   afterEach(() => {
     process.env = originalEnv;
-    clearConfigCache();
+    if (clearConfigCache) {
+      clearConfigCache();
+    }
+    jest.clearAllMocks();
+    jest.resetModules();
   });
   
   describe('validateConfig', () => {

@@ -14,5 +14,3 @@ export const toolRegistry: Record<string, ToolRegistry> = {
   [crawlingTool.name]: crawlingTool,
   [competitorFinderTool.name]: competitorFinderTool,
 };
-
-export { API_CONFIG } from "./config.js";

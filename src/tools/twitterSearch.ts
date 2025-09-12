@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createSearchTool } from "./tool-builder.js";
-import { API_CONFIG } from "./config.js";
+import { getConfig } from "../config/index.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 
 const twitterSearchSchema = z.object({
@@ -16,14 +16,15 @@ export const twitterSearchTool = createSearchTool(
   twitterSearchSchema,
   false,
   ({ query, numResults, startPublishedDate, endPublishedDate }) => {
+    const config = getConfig();
     const request = {
       query,
       includeDomains: ["x.com", "twitter.com"],
       type: "auto",
-      numResults: numResults || API_CONFIG.DEFAULT_NUM_RESULTS,
+      numResults: numResults || config.tools.defaultNumResults,
       contents: {
         text: {
-          maxCharacters: API_CONFIG.DEFAULT_MAX_CHARACTERS
+          maxCharacters: config.tools.defaultMaxCharacters
         },
         livecrawl: 'always' as const
       },
@@ -32,5 +33,5 @@ export const twitterSearchTool = createSearchTool(
     };
     return request;
   },
-  (data, toolName) => ResponseFormatter.formatTwitterResponse(data.results)
+  (_data, _toolName) => ResponseFormatter.formatTwitterResponse(_data.results)
 );

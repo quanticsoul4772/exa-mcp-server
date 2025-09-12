@@ -56,10 +56,17 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
    - `crawling`: Direct URL content extraction
    - `competitor_finder`: Competitor identification
 
-4. **Utilities** (`src/utils/`):
+4. **Configuration** (`src/config/index.ts`):
+   - Centralized configuration with Zod validation
+   - Fail-fast behavior on invalid configuration
+   - Environment variables: `EXA_API_KEY` (required), `LOG_LEVEL`, `NODE_ENV`, `REDACT_LOGS`, cache settings
+   - See `.env.example` for all supported environment variables
+
+5. **Utilities** (`src/utils/`):
    - `formatter.ts`: Response formatting with single-line output for Claude UI compatibility
-   - `logger.ts`: Logging utilities for debugging
-   - `exaClient.ts`: Centralized Axios client configuration and error handling
+   - `logger.ts` & `pinoLogger.ts`: Structured logging with sensitive data redaction
+   - `exaClient.ts`: Centralized Axios client with retry logic and error handling
+   - `cache.ts`: LRU cache with TTL for API request optimization
 
 ### Key Design Patterns
 
@@ -67,8 +74,9 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
 - **Zod schemas**: Type-safe parameter validation for all tools including URL validation
 - **Async handlers**: All tool handlers return promises for non-blocking operations
 - **Centralized error handling**: Shared utilities in `exaClient.ts` for consistent error handling
-- **Centralized configuration**: Uses `src/config/index.ts` with Zod validation, fail-fast behavior, and comprehensive environment variable management
 - **ESM modules**: Uses ES modules with `.js` extensions in imports
+- **Retry logic**: Exponential backoff for failed API requests (configurable via `EXA_RETRIES`)
+- **Request caching**: LRU cache to reduce redundant API calls (configurable via `CACHE_*` env vars)
 
 ### Adding New Tools
 
@@ -84,12 +92,15 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
 - Test files in `__tests__` directories mirroring source structure
 - Mock external API calls in tests
 - Coverage reports generated in HTML and LCOV formats
+- Run specific test: `npm test -- path/to/test.ts`
 
 ## Important Notes
 
 - The server communicates via stdio with MCP clients
 - Tool names must be unique and avoid conflicts with Claude's built-in tools
 - All responses are formatted as single-line text to prevent Claude UI issues
-- Configuration is validated at startup with fail-fast behavior - see `.env.example` for all supported environment variables
+- Configuration is validated at startup with fail-fast behavior
 - API key must be set as `EXA_API_KEY` environment variable (required)
-- Configuration uses centralized validation with detailed error messages for missing or invalid settings
+- TypeScript compilation targets ES2022 with Node16 module resolution
+- ESLint configured with TypeScript plugin, semicolons required
+- Logging uses Pino with structured output and automatic sensitive data redaction

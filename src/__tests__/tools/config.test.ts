@@ -1,3 +1,11 @@
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+
+// Set up module isolation
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.resetModules();
+});
+
 // Mock pinoLogger before importing tools
 jest.mock('../../utils/pinoLogger.js', () => ({
   createRequestLogger: jest.fn(() => ({
@@ -21,15 +29,62 @@ jest.mock('../../utils/pinoLogger.js', () => ({
   }
 }));
 
-import { toolRegistry, API_CONFIG } from '../../tools/index.js';
+// Mock the config module to provide test values
+jest.mock('../../config/index.js', () => ({
+  getConfig: jest.fn(() => ({
+    exa: {
+      apiKey: 'test-api-key',
+      baseUrl: 'https://api.exa.ai',
+      timeout: 25000,
+      retries: 3
+    },
+    tools: {
+      defaultNumResults: 3,
+      defaultMaxCharacters: 3000
+    },
+    cache: {
+      enabled: false,
+      maxSize: 100,
+      ttlMinutes: 5
+    },
+    environment: {
+      nodeEnv: 'test'
+    }
+  })),
+  clearConfigCache: jest.fn()
+}));
+
+// Mock cache module to prevent global state issues
+jest.mock('../../utils/cache.js', () => ({
+  getGlobalCache: jest.fn(() => ({
+    get: jest.fn(() => null),
+    set: jest.fn(),
+    clear: jest.fn(),
+    getStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0, hitRate: 0 })),
+    isEnabled: jest.fn(() => false),
+    setEnabled: jest.fn()
+  })),
+  resetGlobalCache: jest.fn(),
+  globalCache: {
+    get: jest.fn(() => null),
+    set: jest.fn(),
+    clear: jest.fn(),
+    getStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0, hitRate: 0 })),
+    isEnabled: jest.fn(() => false),
+    setEnabled: jest.fn()
+  }
+}));
+
+import { toolRegistry } from '../../tools/index.js';
+import { getConfig } from '../../config/index.js';
 
 describe('Tool Configuration', () => {
-  describe('API_CONFIG', () => {
-    it('should have correct configuration values', () => {
-      expect(API_CONFIG.BASE_URL).toBe('https://api.exa.ai');
-      expect(API_CONFIG.ENDPOINTS.SEARCH).toBe('/search');
-      expect(API_CONFIG.DEFAULT_NUM_RESULTS).toBe(3);
-      expect(API_CONFIG.DEFAULT_MAX_CHARACTERS).toBe(3000);
+  describe('Centralized Configuration', () => {
+    it('should use centralized configuration values', () => {
+      const config = getConfig();
+      expect(config.exa.baseUrl).toBe('https://api.exa.ai');
+      expect(config.tools.defaultNumResults).toBe(3);
+      expect(config.tools.defaultMaxCharacters).toBe(3000);
     });
   });
 
