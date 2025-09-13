@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { ToolRegistry } from "./config.js";
+import { ToolRegistry, ToolHandlerExtra } from "./config.js";
 import { ExaCrawlRequest, ExaSearchRequest, ExaSearchResponse } from "../types.js";
 import { createExaClient, handleExaError } from "../utils/exaClient.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { getGlobalCache } from "../utils/cache.js";
-import { getConfig } from "../config/index.js";
+import { ProgressTracker, extractToolContext } from "./progress-tracker.js";
 
 /**
  * Tool configuration types for different API endpoints
@@ -19,6 +19,8 @@ type ToolConfig<T extends z.ZodObject<any>, TRequest, TResponse> = {
   createRequest: (args: z.infer<T>) => TRequest;
   formatResponse: (data: TResponse, toolName: string) => string;
   getStartContext: (args: z.infer<T>) => string;
+  /** Optional progress steps for progress tracking */
+  progressSteps?: string[];
 };
 
 /**
@@ -61,8 +63,21 @@ export function createTool<
     schema: config.schema,
     enabled: config.enabled,
     handler: async (args, extra) => {
-      const requestId = generateRequestId();
-      const logger = createRequestLogger(requestId, config.name);
+      // Extract v1.18.0 metadata and context
+      const context = extractToolContext(extra as ToolHandlerExtra);
+
+      // Use metadata requestId if available, otherwise generate one
+      const requestId = context.requestId || generateRequestId();
+      const logger = createRequestLogger(requestId, config.name, context.requestId);
+
+      // Create progress tracker if steps are defined
+      const progress = config.progressSteps
+        ? new ProgressTracker(
+            config.progressSteps.length,
+            context.progressToken,
+            context.server
+          )
+        : null;
 
       // Validate arguments with strict parsing - this provides runtime type safety
       const validationResult = config.schema.safeParse(args);
@@ -82,6 +97,11 @@ export function createTool<
       const validatedArgs = validationResult.data as z.infer<T>;
       logger.start(config.getStartContext(validatedArgs));
 
+      // Send initial progress if available
+      if (progress) {
+        await progress.update(0, "Starting request...");
+      }
+
       try {
         // Get cache instance using lazy initialization
         const cache = getGlobalCache();
@@ -90,6 +110,9 @@ export function createTool<
         const cachedResponse = cache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
         if (cachedResponse) {
           logger.log(`Cache hit for ${config.name}`);
+          if (progress) {
+            await progress.complete("Using cached response");
+          }
           const formattedResponse = config.formatResponse(cachedResponse, config.name);
           const result = {
             content: [{
@@ -101,10 +124,20 @@ export function createTool<
           return result;
         }
 
+        // Update progress for cache miss
+        if (progress && config.progressSteps && config.progressSteps.length > 0) {
+          await progress.increment(config.progressSteps[0] || "Preparing request...");
+        }
+
         const client = createExaClient();
         const request = config.createRequest(validatedArgs);
 
         logger.log(`Sending request to Exa API for ${config.name}`);
+
+        // Update progress before API call
+        if (progress && config.progressSteps && config.progressSteps.length > 1) {
+          await progress.increment(config.progressSteps[1] || "Sending API request...");
+        }
 
         const response = await client.post<TResponse>(
           config.endpoint,
@@ -115,6 +148,11 @@ export function createTool<
         cache.set(config.endpoint, request, response.data);
 
         logger.log(`Received response from Exa API for ${config.name}`);
+
+        // Update progress after API response
+        if (progress && config.progressSteps && config.progressSteps.length > 2) {
+          await progress.increment(config.progressSteps[2] || "Processing response...");
+        }
 
         // Handle empty responses based on response type
         if (!response.data) {
@@ -141,6 +179,11 @@ export function createTool<
           logger.log(`Found ${response.data.results.length} results for ${config.name}`);
         }
 
+        // Update progress for formatting
+        if (progress && config.progressSteps && config.progressSteps.length > 3) {
+          await progress.increment(config.progressSteps[3] || "Formatting results...");
+        }
+
         const formattedResponse = config.formatResponse(response.data, config.name);
         const result = {
           content: [{
@@ -148,6 +191,11 @@ export function createTool<
             text: formattedResponse
           }]
         };
+
+        // Mark progress as complete
+        if (progress) {
+          await progress.complete("Request completed successfully");
+        }
 
         logger.complete();
         return result;
@@ -182,7 +230,8 @@ export function createSearchTool<T extends z.ZodObject<any>>(
   schema: T,
   enabled: boolean,
   createRequest: (args: z.infer<T>) => ExaSearchRequest,
-  formatResponse?: (data: ExaSearchResponse, toolName: string) => string
+  formatResponse?: (data: ExaSearchResponse, toolName: string) => string,
+  progressSteps?: string[]
 ): ToolRegistry {
   return createTool({
     name,
@@ -192,7 +241,8 @@ export function createSearchTool<T extends z.ZodObject<any>>(
     endpoint: '/search', // Using the API endpoint directly
     createRequest,
     formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
-    getStartContext: (args) => getQueryFromArgs(args)
+    getStartContext: (args) => getQueryFromArgs(args),
+    progressSteps
   });
 }
 
@@ -205,7 +255,8 @@ export function createCrawlTool<T extends z.ZodObject<any>>(
   description: string,
   schema: T,
   enabled: boolean,
-  createRequest: (args: z.infer<T>) => ExaCrawlRequest
+  createRequest: (args: z.infer<T>) => ExaCrawlRequest,
+  progressSteps?: string[]
 ): ToolRegistry {
   return createTool({
     name,
@@ -215,7 +266,8 @@ export function createCrawlTool<T extends z.ZodObject<any>>(
     endpoint: '/contents', // Using the API endpoint directly
     createRequest,
     formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCrawlResponse(data.results),
-    getStartContext: (args) => getUrlFromArgs(args)
+    getStartContext: (args) => getUrlFromArgs(args),
+    progressSteps
   });
 }
 
@@ -228,7 +280,8 @@ export function createCompetitorFinderTool<T extends z.ZodObject<any>>(
   description: string,
   schema: T,
   enabled: boolean,
-  createRequest: (args: z.infer<T>) => ExaSearchRequest
+  createRequest: (args: z.infer<T>) => ExaSearchRequest,
+  progressSteps?: string[]
 ): ToolRegistry {
   return createTool({
     name,
@@ -238,6 +291,7 @@ export function createCompetitorFinderTool<T extends z.ZodObject<any>>(
     endpoint: '/search', // Using the API endpoint directly
     createRequest,
     formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCompetitorResponse(data.results),
-    getStartContext: (args) => getQueryFromArgs(args)
+    getStartContext: (args) => getQueryFromArgs(args),
+    progressSteps
   });
 }

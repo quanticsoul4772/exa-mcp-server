@@ -27,5 +27,12 @@ export const competitorFinderTool = createCompetitorFinderTool(
       },
       excludeDomains: excludeDomain ? [excludeDomain] : undefined
     };
-  }
+  },
+  // Progress steps for competitor finder
+  [
+    "Analyzing target company...",
+    "Searching for similar companies...",
+    "Evaluating competitor relevance...",
+    "Compiling competitor analysis..."
+  ]
 );

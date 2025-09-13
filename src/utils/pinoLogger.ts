@@ -156,10 +156,11 @@ function wrapPinoLogger(pinoLogger: Logger): StructuredLogger {
 /**
  * Creates a request-specific logger with enhanced methods
  */
-function createStructuredRequestLoggerInternal(baseLogger: Logger, requestId: string, toolName?: string): RequestLogger {
+function createStructuredRequestLoggerInternal(baseLogger: Logger, requestId: string, toolName?: string, metaRequestId?: string): RequestLogger {
   const childLogger = baseLogger.child({
     requestId,
-    ...(toolName && { toolName })
+    ...(toolName && { toolName }),
+    ...(metaRequestId && { metaRequestId, requestSource: 'client' })
   });
 
   return {
@@ -250,8 +251,8 @@ export const structuredLogger: StructuredLogger = wrapPinoLogger(logger);
  * requestLogger.complete(1250);
  * ```
  */
-export function createStructuredRequestLogger(requestId: string, toolName?: string): RequestLogger {
-  return createStructuredRequestLoggerInternal(logger, requestId, toolName);
+export function createStructuredRequestLogger(requestId: string, toolName?: string, metaRequestId?: string): RequestLogger {
+  return createStructuredRequestLoggerInternal(logger, requestId, toolName, metaRequestId);
 }
 
 /**
@@ -281,8 +282,8 @@ export const logError = (message: string) => structuredLogger.error(message);
  * Legacy request logger factory for backward compatibility
  * Returns a request logger that matches the old interface but outputs structured logs
  */
-export const createRequestLogger = (requestId: string, toolName: string) => {
-  const requestLogger = createStructuredRequestLogger(requestId, toolName);
+export const createRequestLogger = (requestId: string, toolName: string, metaRequestId?: string) => {
+  const requestLogger = createStructuredRequestLogger(requestId, toolName, metaRequestId);
   
   return {
     log: (message: string) => requestLogger.debug(message),

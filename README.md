@@ -14,6 +14,28 @@ A Model Context Protocol (MCP) server that provides Exa AI search capabilities t
 - 🔒 **Privacy-First** - Sensitive data redaction in logs
 - 🔄 **Resilient** - Automatic retries with exponential backoff
 
+## MCP SDK v1.18.0 Features
+
+This server fully supports the latest MCP SDK v1.18.0 features:
+
+### 📊 Progress Tracking
+Real-time progress notifications for long-running searches. Claude and other MCP clients will display progress indicators during:
+- Research paper searches (4 stages: searching, retrieving, extracting, formatting)
+- Company research (4 stages: finding domain, crawling, extracting, compiling)
+- Competitor analysis (4 stages: analyzing, searching, evaluating, compiling)
+
+### 🔗 Request ID Correlation
+Enhanced request tracking with support for client-provided request IDs via the `_meta.requestId` field. This enables:
+- Better debugging with correlated logs between client and server
+- Request tracing across distributed systems
+- Improved error tracking and monitoring
+
+### 🎯 Metadata Support
+Full support for the `_meta` field in tool requests, allowing:
+- Custom metadata pass-through
+- Enhanced context for tool execution
+- Future extensibility for new MCP features
+
 ## Quick Start
 
 ### 1. Get an Exa API Key
