@@ -4,37 +4,17 @@ A Model Context Protocol (MCP) server that provides Exa AI search capabilities t
 
 ## Features
 
-- 🔍 **Web Search** - General web search with live crawling
-- 📚 **Research Papers** - Academic paper search from scholarly sources
-- 🐦 **Twitter/X Search** - Search tweets and social media content
-- 🏢 **Company Research** - Targeted company information gathering
-- 🌐 **URL Crawling** - Extract content from specific URLs
-- 🏆 **Competitor Analysis** - Find competitors for any business
-- ⚡ **Configurable Tools** - Enable/disable specific search capabilities
-- 🔒 **Privacy-First** - Sensitive data redaction in logs
-- 🔄 **Resilient** - Automatic retries with exponential backoff
-
-## MCP SDK v1.18.0 Features
-
-This server fully supports the latest MCP SDK v1.18.0 features:
-
-### 📊 Progress Tracking
-Real-time progress notifications for long-running searches. Claude and other MCP clients will display progress indicators during:
-- Research paper searches (4 stages: searching, retrieving, extracting, formatting)
-- Company research (4 stages: finding domain, crawling, extracting, compiling)
-- Competitor analysis (4 stages: analyzing, searching, evaluating, compiling)
-
-### 🔗 Request ID Correlation
-Enhanced request tracking with support for client-provided request IDs via the `_meta.requestId` field. This enables:
-- Better debugging with correlated logs between client and server
-- Request tracing across distributed systems
-- Improved error tracking and monitoring
-
-### 🎯 Metadata Support
-Full support for the `_meta` field in tool requests, allowing:
-- Custom metadata pass-through
-- Enhanced context for tool execution
-- Future extensibility for new MCP features
+- Web Search - General web search with live crawling
+- Research Papers - Academic paper search from scholarly sources
+- Twitter/X Search - Search tweets and social media content
+- Company Research - Targeted company information gathering
+- URL Crawling - Extract content from specific URLs
+- Competitor Analysis - Find competitors for any business
+- Progress Tracking - Real-time progress notifications for long-running searches
+- Request ID Correlation - Track requests with client-provided IDs
+- Configurable Tools - Enable/disable specific search capabilities
+- Privacy-First - Sensitive data redaction in logs
+- Resilient - Automatic retries with exponential backoff
 
 ## Quick Start
 
@@ -79,12 +59,12 @@ Add to your Claude Desktop configuration file:
 
 | Tool | ID | Description | Default |
 |------|----|--------------|---------|
-| Web Search | `exa_search` | General web search with live crawling | ✅ |
-| Research Papers | `research_paper_search` | Academic paper search | ✅ |
-| Twitter Search | `twitter_search` | Search tweets and social media | ✅ |
-| Company Research | `company_research` | Company information gathering | ✅ |
-| URL Crawling | `crawling` | Extract content from URLs | ✅ |
-| Competitor Finder | `competitor_finder` | Find business competitors | ❌ |
+| Web Search | `exa_search` | General web search with live crawling | Yes |
+| Research Papers | `research_paper_search` | Academic paper search | Yes |
+| Twitter Search | `twitter_search` | Search tweets and social media | Yes |
+| Company Research | `company_research` | Company information gathering | Yes |
+| URL Crawling | `crawling` | Extract content from URLs | Yes |
+| Competitor Finder | `competitor_finder` | Find business competitors | No |
 
 ## Configuration
 
@@ -92,10 +72,10 @@ Add to your Claude Desktop configuration file:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `EXA_API_KEY` | ✅ | - | Your Exa AI API key |
-| `LOG_LEVEL` | ❌ | `DEBUG` (dev) / `ERROR` (prod) | Logging level (ERROR, WARN, INFO, DEBUG) |
-| `NODE_ENV` | ❌ | `development` | Environment mode |
-| `REDACT_LOGS` | ❌ | `true` | Redact sensitive data in logs |
+| `EXA_API_KEY` | Yes | - | Your Exa AI API key |
+| `LOG_LEVEL` | No | `DEBUG` (dev) / `ERROR` (prod) | Logging level (ERROR, WARN, INFO, DEBUG) |
+| `NODE_ENV` | No | `development` | Environment mode |
+| `REDACT_LOGS` | No | `true` | Redact sensitive data in logs |
 
 ### Tool Selection
 
