@@ -209,6 +209,30 @@ export REDACT_LOGS=false
 exa-mcp-server
 ```
 
+## Project Structure
+
+```
+exa-mcp-server/
+├── src/                    # Source code
+│   ├── config/            # Configuration management
+│   ├── tools/             # Tool implementations
+│   └── utils/             # Utility functions
+├── docs/                   # Documentation
+│   ├── testing/           # Test plans and reports
+│   └── development/       # Development guides
+├── config/                 # Configuration files
+├── examples/              # Usage examples
+└── __mocks__/             # Test mocks
+```
+
+## Documentation
+
+- [API Reference](docs/API.md) - Detailed API documentation
+- [Tool Reference](docs/TOOL_REFERENCE.md) - Complete tool documentation
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Developer Guide](docs/development/DEVELOPER_GUIDE.md) - Development setup and practices
+- [Testing Guide](docs/testing/TESTING.md) - Testing strategies and coverage
+
 ## Contributing
 
 1. Fork the repository

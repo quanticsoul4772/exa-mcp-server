@@ -25,9 +25,10 @@ export interface ServiceConfig {
     ttlMinutes?: number;
   };
   rateLimiter?: {
-    maxTokens?: number;
-    refillRate?: number;
-    maxQueueSize?: number;
+    maxRequests?: number;
+    windowMs?: number;
+    maxBurst?: number;
+    retryAfterMs?: number;
   };
   urlValidator?: {
     allowedProtocols?: string[];
@@ -78,10 +79,10 @@ export class ServiceFactory {
   /**
    * Create a new RequestBatcher instance
    */
-  static createRequestBatcher<T, R>(
-    processor: (items: T[]) => Promise<R[]>,
-    options?: { maxBatchSize?: number; maxWaitTime?: number; deduplicate?: boolean }
-  ): RequestBatcher<T, R> {
+  static createRequestBatcher<T>(
+    processor: (items: any[]) => Promise<T[]>,
+    options?: { maxBatchSize?: number; batchDelayMs?: number; maxWaitMs?: number }
+  ): RequestBatcher<T> {
     return new RequestBatcher(processor, options);
   }
 
@@ -91,7 +92,19 @@ export class ServiceFactory {
   static getRateLimiter(): RateLimiter {
     const key = 'rateLimiter';
     if (!this.instances.has(key)) {
-      const limiter = new RateLimiter(this.config.rateLimiter);
+      const defaultConfig = {
+        maxRequests: 10,
+        windowMs: 1000,
+        maxBurst: 5,
+        retryAfterMs: 1000
+      };
+      const config = this.config.rateLimiter ? {
+        maxRequests: this.config.rateLimiter.maxRequests ?? defaultConfig.maxRequests,
+        windowMs: this.config.rateLimiter.windowMs ?? defaultConfig.windowMs,
+        maxBurst: this.config.rateLimiter.maxBurst ?? defaultConfig.maxBurst,
+        retryAfterMs: this.config.rateLimiter.retryAfterMs ?? defaultConfig.retryAfterMs
+      } : defaultConfig;
+      const limiter = new RateLimiter(config);
       this.instances.set(key, limiter);
     }
     return this.instances.get(key);

@@ -4,7 +4,8 @@ const config: Config = {
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts'],
   testEnvironment: 'node',
-  testMatch: ['**/*.standalone.test.ts'],
+  rootDir: '../',
+  testMatch: ['<rootDir>/src/**/*.standalone.test.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -15,7 +16,7 @@ const config: Config = {
     '!src/index.ts',
     '!src/__tests__/**'
   ],
-  coverageDirectory: 'coverage',
+  coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   transform: {
     '^.+\\.tsx?$': [
