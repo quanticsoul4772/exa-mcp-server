@@ -9,7 +9,8 @@ import { z } from 'zod';
 import { getConfig } from "./config/index.js";
 // Import the tool registry system
 import { toolRegistry } from "./tools/index.js";
-import { log, logInfo, logError } from "./utils/pinoLogger.js";
+import { ToolHandlerExtra } from "./tools/config.js";
+import { logInfo, logError } from "./utils/pinoLogger.js";
 import { CLIArguments } from "./types/cli.js";
 
 /**
@@ -42,28 +43,38 @@ class ExaServer {
   private setupTools(): string[] {
     // Register tools based on specifications
     const registeredTools: string[] = [];
-    
+
     Object.entries(toolRegistry).forEach(([toolId, tool]) => {
       // If specific tools were provided, only enable those.
       // Otherwise, enable all tools marked as enabled by default
-      const shouldRegister = this.specifiedTools.size > 0 
-        ? this.specifiedTools.has(toolId) 
+      const shouldRegister = this.specifiedTools.size > 0
+        ? this.specifiedTools.has(toolId)
         : tool.enabled;
-      
+
       if (shouldRegister) {
         // Convert ZodObject to ZodRawShape for MCP server compatibility
         const schema = tool.schema instanceof z.ZodObject ? tool.schema.shape : tool.schema;
-        
+
+        // Wrap the handler to inject the server instance for progress notifications
+        const enhancedHandler = async (args: any, extra: any) => {
+          // Pass the server instance to tools for v1.18.0 progress notifications
+          const enhancedExtra: ToolHandlerExtra = {
+            ...(extra || {}),
+            server: this.server
+          };
+          return tool.handler(args, enhancedExtra);
+        };
+
         this.server.tool(
           tool.name,
           tool.description,
           schema,
-          tool.handler
+          enhancedHandler as any
         );
         registeredTools.push(toolId);
       }
     });
-    
+
     return registeredTools;
   }
 

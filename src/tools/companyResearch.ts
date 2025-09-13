@@ -32,5 +32,12 @@ export const companyResearchTool = createSearchTool(
       }
     };
   },
-  (_data, _toolName) => ResponseFormatter.formatCompanyResponse(_data.results)
+  (_data, _toolName) => ResponseFormatter.formatCompanyResponse(_data.results),
+  // Progress steps for company research
+  [
+    "Finding company domain...",
+    "Crawling main pages...",
+    "Extracting subpage content...",
+    "Compiling company information..."
+  ]
 );

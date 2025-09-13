@@ -29,5 +29,12 @@ export const researchPaperSearchTool = createSearchTool(
       }
     };
   },
-  (_data, _toolName) => ResponseFormatter.formatResearchPaperResponse(_data.results)
+  (_data, _toolName) => ResponseFormatter.formatResearchPaperResponse(_data.results),
+  // Progress steps for research paper search
+  [
+    "Searching academic databases...",
+    "Retrieving paper metadata...",
+    "Extracting paper content...",
+    "Formatting research results..."
+  ]
 );
