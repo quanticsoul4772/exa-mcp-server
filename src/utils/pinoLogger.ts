@@ -49,9 +49,11 @@ function createPinoLogger(): Logger {
         'authorization',
         'token',
         'apiKey',
-        'x-api-key',
         'cookie',
-        'secret'
+        'secret',
+        'headers.authorization',
+        'headers.apiKey',
+        'headers.cookie'
       ],
       remove: config.logging.redactLogs
     },
@@ -61,20 +63,21 @@ function createPinoLogger(): Logger {
     }
   };
 
-  // Use pino-pretty for development, raw JSON for production
-  if (config.environment.nodeEnv === 'development') {
-    loggerOptions.transport = {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss',
-        ignore: 'pid,hostname',
-        singleLine: false
-      }
-    };
-  }
+  // Disable pino-pretty for MCP servers to avoid ANSI color codes breaking JSON parsing
+  // MCP servers need clean JSON output without formatting
+  // if (config.environment.nodeEnv === 'development') {
+  //   loggerOptions.transport = {
+  //     target: 'pino-pretty',
+  //     options: {
+  //       colorize: true,
+  //       translateTime: 'HH:MM:ss',
+  //       ignore: 'pid,hostname',
+  //       singleLine: false
+  //     }
+  //   };
+  // }
 
-  return pino(loggerOptions);
+  return pino(loggerOptions, pino.destination({ dest: 2, sync: false })); // 2 = stderr
 }
 
 // Create singleton logger instance
