@@ -152,6 +152,11 @@ export function getConfig(): Config {
       console.error('❌ Unexpected configuration error:', error);
     }
     
+    // In test environment, throw the error instead of exiting
+    if (process.env.NODE_ENV === 'test') {
+      throw error;
+    }
+    
     process.exit(1);
   }
 }

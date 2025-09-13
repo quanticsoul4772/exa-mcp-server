@@ -318,3 +318,10 @@ export async function getHealthReport(): Promise<string> {
   const status = await service.check(true);
   return service.formatStatus(status);
 }
+
+/**
+ * Reset global health check service
+ */
+export function resetHealthCheckService(): void {
+  globalHealthCheck = null;
+}

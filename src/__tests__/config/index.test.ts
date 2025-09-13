@@ -300,5 +300,108 @@ describe('Configuration Management', () => {
       
       expect(config1).toBe(config2); // Same reference
     });
+    
+    it('should handle missing API key with helpful error', () => {
+      delete process.env.EXA_API_KEY;
+      
+      expect(() => {
+        getConfig();
+      }).toThrow(/API key/i);
+    });
+    
+    it('should use all environment variables', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.EXA_BASE_URL = 'https://custom.api.com';
+      process.env.EXA_TIMEOUT = '35000';
+      process.env.EXA_RETRIES = '4';
+      process.env.LOG_LEVEL = 'DEBUG';
+      process.env.REDACT_LOGS = 'true';
+      process.env.NODE_ENV = 'development';
+      process.env.DEFAULT_NUM_RESULTS = '15';
+      process.env.DEFAULT_MAX_CHARACTERS = '6000';
+      process.env.CACHE_ENABLED = 'true';
+      process.env.CACHE_MAX_SIZE = '200';
+      process.env.CACHE_TTL_MINUTES = '10';
+      
+      const config = getConfig();
+      
+      expect(config.exa.apiKey).toBe('test-key');
+      expect(config.exa.baseUrl).toBe('https://custom.api.com');
+      expect(config.exa.timeout).toBe(35000);
+      expect(config.exa.retries).toBe(4);
+      expect(config.logging.level).toBe('DEBUG');
+      expect(config.logging.redactLogs).toBe(true);
+      expect(config.environment.nodeEnv).toBe('development');
+      expect(config.tools.defaultNumResults).toBe(15);
+      expect(config.tools.defaultMaxCharacters).toBe(6000);
+      expect(config.cache.enabled).toBe(true);
+      expect(config.cache.maxSize).toBe(200);
+      expect(config.cache.ttlMinutes).toBe(10);
+    });
+    
+    it('should handle invalid numeric environment variables', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.EXA_TIMEOUT = 'not-a-number';
+      
+      expect(() => {
+        getConfig();
+      }).toThrow();
+    });
+    
+    it('should handle out of range values', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.DEFAULT_NUM_RESULTS = '200'; // Above max of 50
+      
+      expect(() => {
+        getConfig();
+      }).toThrow();
+    });
+    
+    it('should handle cache configuration', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.CACHE_ENABLED = 'false';
+      process.env.CACHE_MAX_SIZE = '50';
+      process.env.CACHE_TTL_MINUTES = '30';
+      
+      const config = getConfig();
+      
+      expect(config.cache.enabled).toBe(false);
+      expect(config.cache.maxSize).toBe(50);
+      expect(config.cache.ttlMinutes).toBe(30);
+    });
+  });
+  
+  describe('Error handling', () => {
+    it('should provide clear error for invalid URL', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.EXA_BASE_URL = 'invalid-url';
+      
+      expect(() => {
+        getConfig();
+      }).toThrow(/Invalid url/i);
+    });
+    
+    it('should provide clear error for invalid enum value', () => {
+      process.env.EXA_API_KEY = 'test-key';
+      process.env.LOG_LEVEL = 'INVALID_LEVEL';
+      
+      expect(() => {
+        getConfig();
+      }).toThrow(/Invalid enum value/i);
+    });
+    
+    it('should handle cache clear correctly', () => {
+      process.env.EXA_API_KEY = 'first-key';
+      
+      const config1 = getConfig();
+      expect(config1.exa.apiKey).toBe('first-key');
+      
+      clearConfigCache();
+      process.env.EXA_API_KEY = 'second-key';
+      
+      const config2 = getConfig();
+      expect(config2.exa.apiKey).toBe('second-key');
+      expect(config1).not.toBe(config2);
+    });
   });
 });
