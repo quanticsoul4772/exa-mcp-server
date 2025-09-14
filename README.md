@@ -65,6 +65,10 @@ Add to your Claude Desktop configuration file:
 | Company Research | `company_research` | Company information gathering | Yes |
 | URL Crawling | `crawling` | Extract content from URLs | Yes |
 | Competitor Finder | `competitor_finder` | Find business competitors | No |
+| Answer Question | `answer_question` | Get direct answers with citations | Yes |
+| Find Similar | `find_similar` | Find pages similar to a URL | Yes |
+| Batch Extract | `batch_extract` | Extract content from multiple URLs | Yes |
+| Deep Research | `deep_research` | Complex multi-step research with structured output | No |
 
 ## Configuration
 
