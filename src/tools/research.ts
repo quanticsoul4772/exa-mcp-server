@@ -55,10 +55,8 @@ class ResearchPoller {
       const response = await this.client.get<ExaResearchStatusResponse>(`/research/status/${taskId}`);
 
       if (progress && response.data.currentStep) {
-        await progress.update(
-          response.data.progress || (attempts / this.maxAttempts * 100),
-          response.data.currentStep
-        );
+        const pct = response.data.progress ?? (attempts / this.maxAttempts * 100);
+        await progress.update(pct, response.data.currentStep);
       }
 
       if (response.data.status === 'completed') {
