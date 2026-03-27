@@ -1,27 +1,118 @@
 // Exa API Types
+
+/**
+ * Search type controls the speed/quality tradeoff
+ */
+export type ExaSearchType = 'auto' | 'instant' | 'fast' | 'neural' | 'deep' | 'deep-reasoning';
+
+/**
+ * Content category filters
+ */
+export type ExaCategory = 'company' | 'research paper' | 'news' | 'personal site' | 'financial report' | 'people';
+
+/**
+ * Text content options for search results
+ */
+export interface ExaTextOptions {
+  maxCharacters?: number;
+  includeHtmlTags?: boolean;
+  verbosity?: 'compact' | 'standard' | 'full';
+  includeSections?: string[];
+  excludeSections?: string[];
+}
+
+/**
+ * Highlights content options
+ */
+export interface ExaHighlightsOptions {
+  maxCharacters?: number;
+  query?: string;
+}
+
+/**
+ * Summary content options
+ */
+export interface ExaSummaryOptions {
+  query?: string;
+  schema?: Record<string, any>;
+}
+
+/**
+ * Extras content options for embedded links and images
+ */
+export interface ExaExtrasOptions {
+  links?: boolean;
+  imageUrls?: boolean;
+}
+
+/**
+ * Contents configuration for search requests
+ */
+export interface ExaContentsOptions {
+  text?: ExaTextOptions | boolean;
+  highlights?: ExaHighlightsOptions | boolean;
+  summary?: ExaSummaryOptions | boolean;
+  subpages?: number;
+  subpageTarget?: string[];
+  extras?: ExaExtrasOptions;
+  maxAgeHours?: number;
+  // Deprecated: use maxAgeHours instead
+  livecrawl?: 'always' | 'fallback' | 'never';
+}
+
 export interface ExaSearchRequest {
   query: string;
-  type: string;
-  category?: string;
+  type: ExaSearchType;
+  category?: ExaCategory;
   includeDomains?: string[];
   excludeDomains?: string[];
   startPublishedDate?: string;
   endPublishedDate?: string;
+  startCrawlDate?: string;
+  endCrawlDate?: string;
+  includeText?: string;
+  excludeText?: string;
   numResults: number;
-  contents: {
-    text: {
-      maxCharacters?: number;
-    } | boolean;
-    livecrawl?: 'always' | 'fallback';
-    subpages?: number;
-    subpageTarget?: string[];
-  };
+  userLocation?: string;
+  moderation?: boolean;
+  outputSchema?: Record<string, any>;
+  systemPrompt?: string;
+  additionalQueries?: string[];
+  contents: ExaContentsOptions;
 }
 
 export interface ExaCrawlRequest {
-  ids: string[];
-  text: boolean;
-  livecrawl?: 'always' | 'fallback';
+  ids?: string[];
+  urls?: string[];
+  text?: ExaTextOptions | boolean;
+  highlights?: ExaHighlightsOptions | boolean;
+  summary?: ExaSummaryOptions | boolean;
+  subpages?: number;
+  subpageTarget?: string[];
+  extras?: ExaExtrasOptions;
+  maxAgeHours?: number;
+  // Deprecated: use maxAgeHours instead
+  livecrawl?: 'always' | 'fallback' | 'never';
+}
+
+/**
+ * Context (code search) request
+ */
+export interface ExaContextRequest {
+  query: string;
+  tokensNum?: number | 'dynamic';
+}
+
+/**
+ * Context (code search) response
+ */
+export interface ExaContextResponse {
+  results: Array<{
+    url: string;
+    text: string;
+    tokens: number;
+  }>;
+  totalTokens: number;
 }
 
 export interface ExaSearchResult {
@@ -31,9 +122,20 @@ export interface ExaSearchResult {
   publishedDate?: string;
   author?: string;
   text?: string;
+  highlights?: string[];
+  summary?: string;
   image?: string;
   favicon?: string;
   score?: number;
+  extras?: {
+    links?: string[];
+    imageUrls?: string[];
+  };
+  subpages?: Array<{
+    url: string;
+    title?: string;
+    text?: string;
+  }>;
 }
 
 export interface ExaSearchResponse {
@@ -49,12 +151,17 @@ export interface ExaSearchResponse {
 export interface ExaCrawlResponse {
   requestId: string;
   results: ExaSearchResult[];
+  statuses?: Array<{
+    url: string;
+    status: string;
+    error?: string;
+  }>;
 }
 
 /**
  * Union type for all possible Exa API responses
  */
-export type ExaApiResponse = ExaSearchResponse | ExaCrawlResponse;
+export type ExaApiResponse = ExaSearchResponse | ExaCrawlResponse | ExaContextResponse;
 
 // Tool Types
 export interface SearchArgs {

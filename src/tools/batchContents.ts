@@ -1,14 +1,6 @@
 import { z } from "zod";
 import { createTool } from "./tool-builder.js";
 
-interface ExaBatchContentsRequest {
-  ids?: string[];
-  urls?: string[];
-  text?: boolean | { maxCharacters?: number; includeHtmlTags?: boolean };
-  highlights?: boolean;
-  livecrawl?: 'always' | 'fallback' | 'never';
-}
-
 interface ExaBatchContentsResponse {
   results: Array<{
     url: string;
@@ -16,9 +8,19 @@ interface ExaBatchContentsResponse {
     title?: string;
     text?: string;
     highlights?: string[];
+    summary?: string;
+    extras?: {
+      links?: string[];
+      imageUrls?: string[];
+    };
     error?: string;
   }>;
   requestId: string;
+  statuses?: Array<{
+    url: string;
+    status: string;
+    error?: string;
+  }>;
 }
 
 const batchContentsSchema = z.object({
@@ -26,13 +28,24 @@ const batchContentsSchema = z.object({
   includeText: z.boolean().optional().default(true),
   textMaxCharacters: z.number().optional().default(5000),
   includeHtmlTags: z.boolean().optional().default(false),
+  textVerbosity: z.enum(['compact', 'standard', 'full']).optional()
+    .describe("Text detail level: 'compact', 'standard', or 'full'"),
   includeHighlights: z.boolean().optional().default(false),
-  livecrawl: z.enum(['always', 'fallback', 'never']).optional().default('fallback')
+  includeSummary: z.boolean().optional().default(false)
+    .describe("Include LLM-generated summary for each URL"),
+  includeExtras: z.boolean().optional().default(false)
+    .describe("Include embedded links and image URLs"),
+  maxAgeHours: z.coerce.number().optional()
+    .describe("Content freshness: 0 = fresh, -1 = cached only, positive = max age in hours"),
+  subpages: z.number().optional()
+    .describe("Number of subpages to crawl per URL"),
+  subpageTarget: z.array(z.string()).optional()
+    .describe("Target specific subpage sections (e.g. ['about', 'pricing'])")
 });
 
 export const batchContentsTool = createTool({
   name: "batch_extract",
-  description: "Extract content from multiple URLs in a single request",
+  description: "Extract content from multiple URLs in a single request. Supports text, highlights, summaries, subpage crawling, and embedded link/image extraction.",
   schema: batchContentsSchema,
   enabled: true,
   endpoint: '/contents',
@@ -40,10 +53,15 @@ export const batchContentsTool = createTool({
     urls: args.urls,
     text: args.includeText ? {
       maxCharacters: args.textMaxCharacters,
-      includeHtmlTags: args.includeHtmlTags
+      includeHtmlTags: args.includeHtmlTags,
+      ...(args.textVerbosity && { verbosity: args.textVerbosity })
     } : false,
-    highlights: args.includeHighlights,
-    livecrawl: args.livecrawl
+    highlights: args.includeHighlights ? { maxCharacters: 500 } : false,
+    ...(args.includeSummary && { summary: true }),
+    ...(args.includeExtras && { extras: { links: true, imageUrls: true } }),
+    ...(args.maxAgeHours !== undefined ? { maxAgeHours: args.maxAgeHours } : { livecrawl: 'fallback' }),
+    ...(args.subpages && { subpages: args.subpages }),
+    ...(args.subpageTarget && { subpageTarget: args.subpageTarget })
   }),
   formatResponse: (data: ExaBatchContentsResponse) => {
     let output = `## Extracted Content from ${data.results.length} URLs\n\n`;
@@ -57,8 +75,17 @@ export const batchContentsTool = createTool({
         successCount++;
         output += `### ${idx + 1}. ${result.title || 'Untitled'}\n`;
         output += `URL: ${result.url}\n\n`;
+        if (result.summary) {
+          output += `**Summary:** ${result.summary}\n\n`;
+        }
         if (result.text) {
           output += `${result.text.substring(0, 500)}...\n\n`;
+        }
+        if (result.extras?.links?.length) {
+          output += `**Links:** ${result.extras.links.length} found\n`;
+        }
+        if (result.extras?.imageUrls?.length) {
+          output += `**Images:** ${result.extras.imageUrls.length} found\n`;
         }
       }
     });

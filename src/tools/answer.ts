@@ -1,14 +1,6 @@
 import { z } from "zod";
 import { createTool } from "./tool-builder.js";
 
-interface ExaAnswerRequest {
-  query: string;
-  numResults?: number;
-  useAutoprompt?: boolean;
-  text?: boolean | { maxCharacters?: number; includeHtmlTags?: boolean };
-  highlights?: boolean | { highlightsPerUrl?: number };
-}
-
 interface ExaAnswerResponse {
   answer: string;
   citations: Array<{
@@ -24,12 +16,12 @@ interface ExaAnswerResponse {
 const answerSchema = z.object({
   query: z.string().min(1).max(2000).describe("Question to answer"),
   numResults: z.number().min(1).max(10).optional().default(5),
-  useAutoprompt: z.boolean().optional().default(true),
   includeText: z.boolean().optional().default(true),
   textMaxCharacters: z.number().optional().default(500),
   includeHtmlTags: z.boolean().optional().default(false),
   includeHighlights: z.boolean().optional().default(false),
-  highlightsPerUrl: z.number().min(1).max(5).optional()
+  highlightsMaxCharacters: z.number().optional().default(300)
+    .describe("Max characters for highlights (replaces deprecated highlightsPerUrl)")
 });
 
 export const answerTool = createTool({
@@ -41,13 +33,12 @@ export const answerTool = createTool({
   createRequest: (args) => ({
     query: args.query,
     numResults: args.numResults,
-    useAutoprompt: args.useAutoprompt,
     text: args.includeText ? {
       maxCharacters: args.textMaxCharacters,
       includeHtmlTags: args.includeHtmlTags
     } : false,
     highlights: args.includeHighlights ? {
-      highlightsPerUrl: args.highlightsPerUrl || 3
+      maxCharacters: args.highlightsMaxCharacters
     } : false
   }),
   formatResponse: (data: ExaAnswerResponse) => {

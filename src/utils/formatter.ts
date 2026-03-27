@@ -41,25 +41,42 @@ export class ResponseFormatter {
    */
   static formatSearchResult(result: ExaSearchResult, index: number): string {
     const lines: string[] = [];
-    
+
     lines.push(`${index}. ${result.title || 'Untitled'}`);
     lines.push(`   URL: ${result.url}`);
-    
+
     if (result.publishedDate) {
       lines.push(`   Published: ${this.formatDate(result.publishedDate)}`);
     }
-    
+
     if (result.author) {
       lines.push(`   Author: ${result.author}`);
     }
-    
+
+    if (result.summary) {
+      lines.push(`   Summary: ${result.summary}`);
+    }
+
     if (result.text) {
       const preview = this.truncateText(result.text, 300);
       lines.push(`   Preview: ${preview}`);
     }
-    
+
+    if (result.highlights?.length) {
+      lines.push(`   Highlights:`);
+      result.highlights.forEach(h => lines.push(`   - ${this.truncateText(h, 200)}`));
+    }
+
+    if (result.extras?.links?.length) {
+      lines.push(`   Links: ${result.extras.links.length} embedded`);
+    }
+
+    if (result.extras?.imageUrls?.length) {
+      lines.push(`   Images: ${result.extras.imageUrls.length} found`);
+    }
+
     lines.push(''); // Empty line between results
-    
+
     return lines.join('\n');
   }
 

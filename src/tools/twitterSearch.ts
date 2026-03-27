@@ -20,7 +20,7 @@ export const twitterSearchTool = createSearchTool(
     const request = {
       query,
       includeDomains: ["x.com", "twitter.com"],
-      type: "auto",
+      type: "auto" as const,
       numResults: numResults || config.tools.defaultNumResults,
       contents: {
         text: {

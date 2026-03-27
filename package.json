@@ -1,7 +1,7 @@
 {
   "name": "exa-mcp-server",
-  "version": "0.3.6",
-  "description": "A Model Context Protocol server with Exa for web search, academic paper search, and Twitter/X.com search. Provides real-time web searches with configurable tool selection, allowing users to enable or disable specific search capabilities. Supports customizable result counts, live crawling options, and returns content from the most relevant websites.",
+  "version": "0.4.0",
+  "description": "A Model Context Protocol server with Exa AI for web search, code search, academic papers, and Twitter/X.com search. Supports deep search types (instant/fast/auto/deep), structured outputs, freshness control, summaries, code-optimized search, and configurable tool selection.",
   "type": "module",
   "repository": {
     "type": "git",

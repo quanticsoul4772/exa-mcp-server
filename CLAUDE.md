@@ -49,12 +49,17 @@ This is a Model Context Protocol (MCP) server that provides Exa AI search capabi
    - Tools implement the `ToolRegistry` interface with name, description, schema (Zod), handler, and enabled flag
 
 3. **Available Tools**:
-   - `exa_search`: General web search (renamed from web_search to avoid conflicts)
+   - `exa_search`: General web search with deep search types (instant/fast/auto/neural/deep), structured outputs, freshness control
    - `research_paper_search`: Academic paper search
    - `twitter_search`: Twitter/X.com search
-   - `company_research`: Company website crawling
-   - `crawling`: Direct URL content extraction
+   - `company_research`: Company website crawling with summaries and subpages
+   - `crawling`: Direct URL content extraction with freshness control
    - `competitor_finder`: Competitor identification
+   - `answer_question`: Direct Q&A with citations
+   - `find_similar`: Semantic similarity search with summaries and domain filtering
+   - `batch_extract`: Multi-URL content extraction with summaries, subpages, and extras
+   - `deep_research`: Multi-step async research with structured output
+   - `code_search`: Code-optimized search via `/context` endpoint (GitHub, docs, Stack Overflow)
 
 4. **Configuration** (`src/config/index.ts`):
    - Centralized configuration with Zod validation

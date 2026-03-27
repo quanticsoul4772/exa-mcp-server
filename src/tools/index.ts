@@ -8,6 +8,7 @@ import { answerTool } from './answer.js';
 import { findSimilarTool } from './findSimilar.js';
 import { batchContentsTool } from './batchContents.js';
 import { researchTool } from './research.js';
+import { codeSearchTool } from './codeSearch.js';
 import { ToolRegistry } from './config.js';
 
 export const toolRegistry: Record<string, ToolRegistry> = {
@@ -21,4 +22,5 @@ export const toolRegistry: Record<string, ToolRegistry> = {
   [findSimilarTool.name]: findSimilarTool,
   [batchContentsTool.name]: batchContentsTool,
   [researchTool.name]: researchTool,
+  [codeSearchTool.name]: codeSearchTool,
 };

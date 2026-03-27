@@ -19,7 +19,7 @@ export const researchPaperSearchTool = createSearchTool(
     return {
       query,
       category: "research paper",
-      type: "auto",
+      type: "auto" as const,
       numResults: numResults || config.tools.defaultNumResults,
       contents: {
         text: {

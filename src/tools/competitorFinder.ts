@@ -17,7 +17,7 @@ export const competitorFinderTool = createCompetitorFinderTool(
     const config = getConfig();
     return {
       query,
-      type: "auto",
+      type: "auto" as const,
       numResults: numResults || 10,
       contents: {
         text: {

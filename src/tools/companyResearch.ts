@@ -6,15 +6,21 @@ import { ResponseFormatter } from "../utils/formatter.js";
 const companyResearchSchema = z.object({
   query: z.string().describe("Company website URL (e.g., 'exa.ai' or 'https://exa.ai')"),
   subpages: z.coerce.number().optional().describe("Number of subpages to crawl (default: 10)"),
-  subpageTarget: z.array(z.string()).optional().describe("Specific sections to target (e.g., ['about', 'pricing', 'faq', 'blog']). If not provided, will crawl the most relevant pages.")
+  subpageTarget: z.array(z.string()).optional().describe("Specific sections to target (e.g., ['about', 'pricing', 'faq', 'blog']). If not provided, will crawl the most relevant pages."),
+  includeSummary: z.boolean().optional().default(false)
+    .describe("Include LLM-generated summary for each page"),
+  includeExtras: z.boolean().optional().default(false)
+    .describe("Include embedded links and image URLs"),
+  maxAgeHours: z.coerce.number().optional()
+    .describe("Content freshness: 0 = fresh, -1 = cached only, positive = max age in hours")
 });
 
 export const companyResearchTool = createSearchTool(
   "company_research",
-  "Research companies using Exa AI - performs targeted searches of company websites to gather comprehensive information about businesses. Returns detailed information from company websites including about pages, pricing, FAQs, blogs, and other relevant content. Specify the company URL and optionally target specific sections of their website.",
+  "Research companies using Exa AI - performs targeted searches of company websites to gather comprehensive information. Returns detailed content from about pages, pricing, FAQs, blogs, and other relevant sections. Supports summaries and freshness control.",
   companyResearchSchema,
   false,
-  ({ query, subpages, subpageTarget }) => {
+  ({ query, subpages, subpageTarget, includeSummary, includeExtras, maxAgeHours }) => {
     const config = getConfig();
     return {
       query,
@@ -26,14 +32,15 @@ export const companyResearchTool = createSearchTool(
         text: {
           maxCharacters: config.tools.defaultMaxCharacters
         },
-        livecrawl: 'always' as const,
+        ...(maxAgeHours !== undefined ? { maxAgeHours } : { livecrawl: 'always' as const }),
         subpages: subpages || 10,
-        subpageTarget: subpageTarget
+        subpageTarget: subpageTarget,
+        ...(includeSummary && { summary: true }),
+        ...(includeExtras && { extras: { links: true, imageUrls: true } })
       }
     };
   },
   (_data, _toolName) => ResponseFormatter.formatCompanyResponse(_data.results),
-  // Progress steps for company research
   [
     "Finding company domain...",
     "Crawling main pages...",
