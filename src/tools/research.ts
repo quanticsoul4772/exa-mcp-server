@@ -5,6 +5,7 @@ import { ProgressTracker, extractToolContext } from "./progress-tracker.js";
 import { createExaClient, handleExaError } from "../utils/exaClient.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { getConfig } from "../config/index.js";
+import { logExaUsage } from "../utils/usageLogger.js";
 
 interface ExaResearchRequest {
   objective: string;
@@ -173,6 +174,7 @@ export const researchTool: ToolRegistry = {
         }
       }
 
+      logExaUsage("deep_research", "ok");
       await progress.complete("Research completed successfully");
       logger.complete();
 
@@ -184,6 +186,11 @@ export const researchTool: ToolRegistry = {
       };
 
     } catch (error) {
+      const statusCode = (error as any)?.response?.status;
+      const status = statusCode === 429 ? "rate_limit"
+        : statusCode === 402 ? "quota_error"
+        : "error";
+      logExaUsage("deep_research", status, String((error as any)?.message ?? "").slice(0, 80));
       logger.error(`Research failed: ${error}`);
       return handleExaError(error, "deep_research", logger);
     }

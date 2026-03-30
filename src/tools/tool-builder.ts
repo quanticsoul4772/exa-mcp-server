@@ -6,6 +6,7 @@ import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { getGlobalCache } from "../utils/cache.js";
 import { ProgressTracker, extractToolContext } from "./progress-tracker.js";
+import { logExaUsage } from "../utils/usageLogger.js";
 
 /**
  * Tool configuration types for different API endpoints
@@ -120,6 +121,7 @@ export function createTool<
               text: formattedResponse
             }]
           };
+          logExaUsage(config.name, "cache_hit");
           logger.complete();
           return result;
         }
@@ -197,9 +199,15 @@ export function createTool<
           await progress.complete("Request completed successfully");
         }
 
+        logExaUsage(config.name, "ok");
         logger.complete();
         return result;
       } catch (error) {
+        const statusCode = (error as any)?.response?.status;
+        const status = statusCode === 429 ? "rate_limit"
+          : statusCode === 402 ? "quota_error"
+          : "error";
+        logExaUsage(config.name, status, String((error as any)?.message ?? "").slice(0, 80));
         return handleExaError(error, config.name, logger);
       }
     },
