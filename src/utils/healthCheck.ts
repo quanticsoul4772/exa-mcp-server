@@ -264,7 +264,7 @@ export class HealthCheckService {
     lines.push('');
     lines.push('Components:');
     
-    for (const [key, component] of Object.entries(status.components)) {
+    for (const [, component] of Object.entries(status.components)) {
       const icon = component.healthy ? '✅' : '❌';
       lines.push(`  ${icon} ${component.name}: ${component.message}`);
       

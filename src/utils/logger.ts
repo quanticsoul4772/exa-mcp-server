@@ -22,6 +22,7 @@ function getCurrentLogLevel(): LogLevel {
   // Try to get config, but handle case where we're being called during config initialization
   try {
     if (!configInstance) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires -- dynamic require avoids circular dependency during config initialization
       const { getConfig } = require('../config/index.js');
       configInstance = getConfig();
     }

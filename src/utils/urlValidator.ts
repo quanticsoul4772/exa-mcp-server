@@ -250,7 +250,8 @@ export class URLValidator {
       /^data:text\/html/i,      // Data URLs with HTML (at start)
       /^vbscript:/i,           // VBScript protocol (at start)
       /^file:\/\//i,           // File protocol (at start)
-      /\x00/,                  // Null bytes
+      // eslint-disable-next-line no-control-regex -- intentionally checks for null byte injection
+      /\u0000/,                // Null bytes
       /[<>]/,                  // HTML tags
       /%00/,                   // URL-encoded null bytes
       /\.\.\//                 // Directory traversal

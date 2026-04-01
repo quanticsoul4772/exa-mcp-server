@@ -269,6 +269,7 @@ export function resetMemoryOptimizer(): void {
 
 // Extend existing global.gc declaration
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- augmenting NodeJS global interface requires namespace syntax
   namespace NodeJS {
     interface Global {
       gc?: () => void;

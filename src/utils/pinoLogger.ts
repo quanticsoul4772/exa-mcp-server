@@ -1,22 +1,6 @@
 import pino, { Logger, LoggerOptions } from 'pino';
 import { getConfig } from '../config/index.js';
 
-/**
- * Base fields that should be included in all log entries
- */
-interface BaseLogFields {
-  service: string;
-  version: string;
-  environment: string;
-}
-
-/**
- * Request-specific fields that should be included in request logs
- */
-interface RequestLogFields extends BaseLogFields {
-  requestId: string;
-  toolName?: string;
-}
 
 /**
  * Creates the main Pino logger instance with appropriate configuration
