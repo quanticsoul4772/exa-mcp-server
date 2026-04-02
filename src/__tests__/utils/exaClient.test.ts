@@ -65,7 +65,7 @@ describe('ExaClient', () => {
   describe('Request Handling', () => {
     it('should handle successful requests', async () => {
       const mockClient = {
-        get: jest.fn<() => Promise<any>>().mockResolvedValue({ data: { results: [] } }),
+        get: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({ data: { results: [] } }),
         post: jest.fn(),
         interceptors: {
           request: { use: jest.fn() },
@@ -85,7 +85,7 @@ describe('ExaClient', () => {
     it('should handle POST requests', async () => {
       const mockClient = {
         get: jest.fn(),
-        post: jest.fn<() => Promise<any>>().mockResolvedValue({ data: { success: true } }),
+        post: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({ data: { success: true } }),
         interceptors: {
           request: { use: jest.fn() },
           response: { use: jest.fn() }

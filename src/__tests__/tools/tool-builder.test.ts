@@ -107,7 +107,7 @@ describe('Tool Builder', () => {
     });
 
     it('should handle tool execution', async () => {
-      const mockPost = jest.fn<() => Promise<any>>().mockResolvedValue({
+      const mockPost = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         data: { results: [{ url: 'https://example.com', title: 'Example', text: 'Content' }] }
       });
       (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({
@@ -232,7 +232,7 @@ describe('Tool Builder', () => {
     });
 
     it('should call /search endpoint', async () => {
-      const mockPost = jest.fn<() => Promise<any>>().mockResolvedValue({
+      const mockPost = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         data: { results: [{ url: 'https://example.com', title: 'Result', text: 'Text' }] }
       });
       (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({
@@ -273,7 +273,7 @@ describe('Tool Builder', () => {
     });
 
     it('should call /contents endpoint', async () => {
-      const mockPost = jest.fn<() => Promise<any>>().mockResolvedValue({
+      const mockPost = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         data: { results: [{ url: 'https://example.com', text: 'Crawled content' }] }
       });
       (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({
