@@ -3,10 +3,11 @@ import { createSearchTool } from "./tool-builder.js";
 import { getConfig } from "../config/index.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 
+// numResults: max 100 (Exa API practical ceiling). maxCharacters: max 100000 (prevents runaway memory on large full-text results)
 const researchPaperSearchSchema = z.object({
   query: z.string().describe("Research topic or keyword to search for"),
-  numResults: z.coerce.number().optional().describe("Number of research papers to return (default: 5)"),
-  maxCharacters: z.coerce.number().optional().describe("Maximum number of characters to return for each result's text content (Default: 3000)")
+  numResults: z.coerce.number().min(1).max(100).optional().describe("Number of research papers to return (default: 5)"),
+  maxCharacters: z.coerce.number().min(1).max(100000).optional().describe("Maximum number of characters to return for each result's text content (Default: 3000)")
 });
 
 export const researchPaperSearchTool = createSearchTool(

@@ -8,6 +8,9 @@ process.env.LOG_LEVEL = 'ERROR';
 process.env.EXA_RETRIES = '0'; // Disable retries for tests
 process.env.EXA_TIMEOUT = '2000'; // 2 second timeout for tests
 
+// Unmock config so the real implementation reads from process.env (test server URL)
+jest.unmock('../../config/index.js');
+
 // Mock pino logger to avoid initialization issues
 jest.mock('../../utils/pinoLogger.js', () => ({
   createRequestLogger: jest.fn(() => ({

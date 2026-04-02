@@ -5,7 +5,7 @@ import { getConfig } from "../config/index.js";
 const competitorFinderSchema = z.object({
   query: z.string().describe("Describe what the company/product in a few words (e.g., 'web search API', 'AI image generation', 'cloud storage service'). Keep it simple. Do not include the company name."),
   excludeDomain: z.string().optional().describe("Optional: The company's website to exclude from results (e.g., 'exa.ai')"),
-  numResults: z.coerce.number().optional().describe("Number of competitors to return (default: 10)")
+  numResults: z.coerce.number().min(1).max(100).optional().describe("Number of competitors to return (default: 10)")
 });
 
 export const competitorFinderTool = createCompetitorFinderTool(

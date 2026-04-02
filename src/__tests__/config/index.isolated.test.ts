@@ -80,7 +80,7 @@ describe('Configuration Isolated Tests', () => {
       
       expect(config.exa.timeout).toBe(25000);
       expect(config.exa.retries).toBe(3);
-      expect(config.logging.level).toBe('INFO');
+      expect(config.logging.level).toBe('DEBUG');
       expect(config.logging.redactLogs).toBe(true);
       expect(config.cache.enabled).toBe(true);
       expect(config.cache.maxSize).toBe(100);

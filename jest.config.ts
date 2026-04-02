@@ -5,7 +5,6 @@ const config: Config = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^.*/utils/pinoLogger\\.js$': '<rootDir>/__mocks__/pinoLogger.js',
   },
   extensionsToTreatAsEsm: ['.ts'],
   transform: {

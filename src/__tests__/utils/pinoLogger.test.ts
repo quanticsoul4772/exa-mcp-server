@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+
+// Must unmock pinoLogger so this test file gets the real implementation.
+// setup.ts mocks it globally, so we explicitly undo that here.
+jest.unmock('../../utils/pinoLogger.js');
+
 import pino from 'pino';
-import { 
-  structuredLogger, 
-  createStructuredRequestLogger, 
+import {
+  structuredLogger,
+  createStructuredRequestLogger,
   createChildLogger,
   generateRequestId,
   log,
@@ -21,13 +26,15 @@ jest.mock('pino', () => {
     debug: jest.fn(),
     child: jest.fn().mockReturnThis()
   };
-  
-  const pinoMock = jest.fn(() => mockLogger);
-  (pinoMock as any).stdTimeFunctions = { isoTime: jest.fn() };
-  
-  Object.assign(pinoMock, { mockLogger });
-  
-  return pinoMock;
+
+  const pinoFn: any = jest.fn(() => mockLogger);
+  pinoFn.stdTimeFunctions = { isoTime: jest.fn() };
+  pinoFn.destination = jest.fn(() => ({}));
+  pinoFn.levels = { values: { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 } };
+  pinoFn.mockLogger = mockLogger;
+
+  // ESM default export
+  return { default: pinoFn, __esModule: true, mockLogger };
 });
 
 // Mock the config

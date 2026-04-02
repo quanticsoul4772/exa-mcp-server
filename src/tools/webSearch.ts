@@ -2,13 +2,14 @@ import { z } from "zod";
 import { createSearchTool } from "./tool-builder.js";
 import { getConfig } from "../config/index.js";
 
+// numResults: min 1 (0 results is meaningless), max 100 (Exa API practical ceiling; higher values risk timeouts and oversized responses)
 const webSearchSchema = z.object({
   query: z.string().describe("Search query"),
-  numResults: z.coerce.number().optional().describe("Number of search results to return (default: 5)"),
+  numResults: z.coerce.number().min(1).max(100).optional().describe("Number of search results to return (default: 5)"),
   searchType: z.enum(['auto', 'instant', 'fast', 'neural', 'deep', 'deep-reasoning']).optional()
     .describe("Search type: 'instant' (~200ms), 'fast' (~450ms), 'auto' (default ~1s), 'neural' (embeddings), 'deep' (~5-60s complex queries), 'deep-reasoning'"),
-  maxAgeHours: z.coerce.number().optional()
-    .describe("Content freshness: 0 = force fresh crawl, -1 = cached only, positive number = max age in hours"),
+  maxAgeHours: z.coerce.number().min(-1).optional()
+    .describe("Content freshness: 0 = force fresh crawl, -1 = cached only, positive number = max age in hours (values below -1 are invalid)"),
   includeDomains: z.array(z.string()).optional()
     .describe("Only return results from these domains (max 1200)"),
   excludeDomains: z.array(z.string()).optional()

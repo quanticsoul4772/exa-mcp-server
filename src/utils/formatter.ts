@@ -130,15 +130,30 @@ export class ResponseFormatter {
    */
   static formatError(error: any, toolName: string): string {
     let message = `Error in ${toolName.replace('_', ' ')}:\n\n`;
-    
+
+    const status: number | undefined = error.response?.status;
+
     if (error.response?.data?.message) {
       message += error.response.data.message;
+    } else if (error.response?.data?.error) {
+      message += error.response.data.error;
     } else if (error.message) {
       message += error.message;
     } else {
-      message += 'An unknown error occurred.';
+      message += `Unexpected error (type: ${typeof error}).`;
     }
-    
+
+    if (status) {
+      message += `\n\nHTTP ${status}`;
+      if (status === 401 || status === 403) {
+        message += ' — check that EXA_API_KEY is set and valid.';
+      } else if (status === 429) {
+        message += ' — rate limit exceeded. Wait before retrying.';
+      } else if (status >= 500) {
+        message += ' — Exa server error. Try again later.';
+      }
+    }
+
     return message;
   }
 

@@ -1,4 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+
+// Override the global setup mock: logger tests need DEBUG level to observe log output
+jest.mock('../../config/index.js', () => ({
+  getConfig: jest.fn(() => ({
+    logging: { level: 'DEBUG', redactLogs: false },
+    server: { name: 'test-server', version: '1.0.0' },
+    environment: { nodeEnv: 'test' }
+  })),
+  clearConfigCache: jest.fn(),
+  validateConfig: jest.fn((config: any) => config)
+}));
+
 import { log, createRequestLogger, LogLevel } from '../../utils/logger.js';
 
 describe('Logger', () => {

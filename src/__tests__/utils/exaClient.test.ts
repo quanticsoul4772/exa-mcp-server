@@ -27,7 +27,7 @@ describe('ExaClient', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedAxios.create = jest.fn().mockReturnValue({
+    (mockedAxios as any).create = jest.fn().mockReturnValue({
       get: jest.fn(),
       post: jest.fn(),
       interceptors: {
@@ -47,7 +47,7 @@ describe('ExaClient', () => {
           timeout: 25000,
           headers: expect.objectContaining({
             'x-api-key': 'test-api-key',
-            'Content-Type': 'application/json'
+            'content-type': 'application/json'
           })
         })
       );
@@ -65,7 +65,7 @@ describe('ExaClient', () => {
   describe('Request Handling', () => {
     it('should handle successful requests', async () => {
       const mockClient = {
-        get: jest.fn().mockResolvedValue({ data: { results: [] } }),
+        get: jest.fn<() => Promise<any>>().mockResolvedValue({ data: { results: [] } }),
         post: jest.fn(),
         interceptors: {
           request: { use: jest.fn() },
@@ -73,7 +73,7 @@ describe('ExaClient', () => {
         }
       };
       
-      mockedAxios.create = jest.fn().mockReturnValue(mockClient);
+      (mockedAxios as any).create = jest.fn().mockReturnValue(mockClient);
       
       const client = createExaClient();
       const response = await client.get('/search');
@@ -85,14 +85,14 @@ describe('ExaClient', () => {
     it('should handle POST requests', async () => {
       const mockClient = {
         get: jest.fn(),
-        post: jest.fn().mockResolvedValue({ data: { success: true } }),
+        post: jest.fn<() => Promise<any>>().mockResolvedValue({ data: { success: true } }),
         interceptors: {
           request: { use: jest.fn() },
           response: { use: jest.fn() }
         }
       };
       
-      mockedAxios.create = jest.fn().mockReturnValue(mockClient);
+      (mockedAxios as any).create = jest.fn().mockReturnValue(mockClient);
       
       const client = createExaClient();
       const response = await client.post('/api/endpoint', { query: 'test' });
@@ -105,18 +105,18 @@ describe('ExaClient', () => {
   describe('Error Handling', () => {
     it('should handle network errors', async () => {
       const mockClient = {
-        get: jest.fn().mockRejectedValue(new Error('Network Error')),
+        get: jest.fn<() => Promise<any>>().mockRejectedValue(new Error('Network Error')),
         post: jest.fn(),
         interceptors: {
           request: { use: jest.fn() },
           response: { use: jest.fn() }
         }
       };
-      
-      mockedAxios.create = jest.fn().mockReturnValue(mockClient);
-      
+
+      (mockedAxios as any).create = jest.fn().mockReturnValue(mockClient);
+
       const client = createExaClient();
-      
+
       await expect(client.get('/search')).rejects.toThrow('Network Error');
     });
 
@@ -127,9 +127,9 @@ describe('ExaClient', () => {
           data: { error: 'Bad Request' }
         }
       };
-      
+
       const mockClient = {
-        get: jest.fn().mockRejectedValue(apiError),
+        get: jest.fn<() => Promise<any>>().mockRejectedValue(apiError),
         post: jest.fn(),
         interceptors: {
           request: { use: jest.fn() },
@@ -137,7 +137,7 @@ describe('ExaClient', () => {
         }
       };
       
-      mockedAxios.create = jest.fn().mockReturnValue(mockClient);
+      (mockedAxios as any).create = jest.fn().mockReturnValue(mockClient);
       
       const client = createExaClient();
       

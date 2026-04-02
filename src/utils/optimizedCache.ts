@@ -40,12 +40,19 @@ export class OptimizedCache {
 
     this.cache = new LRUCache<string, CacheEntry>({
       max: maxSize,
+      // maxSize bounds total entry bytes; sizeCalculation requires this to be set
+      maxSize: maxSize * 65536,
       ttl: ttlMinutes * 60 * 1000,
       updateAgeOnGet: true,
       updateAgeOnHas: false,
       sizeCalculation: (entry) => entry.size,
       dispose: () => this.stats.evictions++,
-      noDeleteOnStaleGet: false
+      noDeleteOnStaleGet: false,
+      // Use Date.now() + ttlResolution:0 so Jest fake timers control TTL expiry in tests.
+      // ttlResolution defaults to 1ms debounce via setTimeout; with fake timers that timeout
+      // never fires, causing stale TTL reads. ttlResolution:0 disables the debounce.
+      perf: { now: () => Date.now() },
+      ttlResolution: 0,
     });
 
     this.logger.info({
@@ -68,8 +75,10 @@ export class OptimizedCache {
    * Calculate approximate size of data
    */
   private calculateSize(data: any): number {
-    if (typeof data === 'string') return data.length;
-    return JSON.stringify(data).length;
+    if (data === null || data === undefined) return 4;
+    if (typeof data === 'string') return data.length || 1; // min 1 for empty string
+    const json = JSON.stringify(data);
+    return json === undefined ? 4 : json.length;
   }
 
   /**
@@ -86,15 +95,24 @@ export class OptimizedCache {
   }
 
   /**
+   * Check if a key exists in cache (respects TTL)
+   */
+  has(key: string | object): boolean {
+    if (!this.enabled) return false;
+    const cacheKey = this.generateKey(key);
+    return this.cache.has(cacheKey);
+  }
+
+  /**
    * Get item from cache with optimized retrieval
    */
-  get<T = any>(key: string | object): T | null {
-    if (!this.enabled) return null;
+  get<T = any>(key: string | object): T | undefined {
+    if (!this.enabled) return undefined;
 
     const cacheKey = this.generateKey(key);
     const entry = this.cache.get(cacheKey);
 
-    if (entry) {
+    if (entry !== undefined) {
       this.stats.hits++;
       this.logger.debug({ key: cacheKey }, 'Cache hit');
       return entry.data as T;
@@ -102,13 +120,14 @@ export class OptimizedCache {
 
     this.stats.misses++;
     this.logger.debug({ key: cacheKey }, 'Cache miss');
-    return null;
+    return undefined;
   }
 
   /**
    * Set item in cache with size tracking
+   * @param ttlMs optional TTL override in milliseconds
    */
-  set<T = any>(key: string | object, value: T): void {
+  set<T = any>(key: string | object, value: T, ttlMs?: number): void {
     if (!this.enabled) return;
 
     const cacheKey = this.generateKey(key);
@@ -121,12 +140,52 @@ export class OptimizedCache {
       size
     };
 
-    this.cache.set(cacheKey, entry);
-    this.logger.debug({ 
-      key: cacheKey, 
+    this.cache.set(cacheKey, entry, ttlMs ? { ttl: ttlMs } : undefined);
+    this.logger.debug({
+      key: cacheKey,
       size,
       compressed: size !== this.calculateSize(value)
     }, 'Cache set');
+  }
+
+  /**
+   * Get multiple values by keys
+   */
+  getMany<T = any>(keys: string[]): Record<string, T | undefined> {
+    const result: Record<string, T | undefined> = {};
+    for (const key of keys) {
+      result[key] = this.get<T>(key);
+    }
+    return result;
+  }
+
+  /**
+   * Set multiple key-value pairs
+   */
+  setMany<T = any>(entries: Record<string, T>): void {
+    for (const [key, value] of Object.entries(entries)) {
+      this.set(key, value);
+    }
+  }
+
+  /**
+   * Delete multiple keys, returning success per key
+   */
+  deleteMany(keys: string[]): Record<string, boolean> {
+    const result: Record<string, boolean> = {};
+    for (const key of keys) {
+      result[key] = this.delete(key);
+    }
+    return result;
+  }
+
+  /**
+   * Generate a cache key from a prefix and data object
+   */
+  static generateKey(prefix: string, data: object | string): string {
+    const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+    const hash = createHash('sha256').update(dataStr).digest('base64');
+    return `${prefix}:${hash}`;
   }
 
   /**

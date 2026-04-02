@@ -102,7 +102,7 @@ describe('ResponseFormatter', () => {
     it('should handle unknown error', () => {
       const formatted = ResponseFormatter.formatError({}, 'exa_search');
       expect(formatted).toContain('Error in exa search');
-      expect(formatted).toContain('An unknown error occurred');
+      expect(formatted).toContain('Unexpected error');
     });
   });
 

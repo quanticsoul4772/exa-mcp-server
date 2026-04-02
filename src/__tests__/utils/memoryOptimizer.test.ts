@@ -62,10 +62,11 @@ describe('MemoryOptimizer', () => {
     });
 
     it('should determine health status based on usage', () => {
+      // maxHeapUsageMB default is 512; critical is >90% = >460MB
       jest.spyOn(process, 'memoryUsage').mockReturnValue({
-        rss: 100 * 1024 * 1024,
-        heapTotal: 100 * 1024 * 1024,
-        heapUsed: 95 * 1024 * 1024, // 95% usage
+        rss: 600 * 1024 * 1024,
+        heapTotal: 600 * 1024 * 1024,
+        heapUsed: 470 * 1024 * 1024, // >90% of 512MB default = critical
         external: 5 * 1024 * 1024,
         arrayBuffers: 1 * 1024 * 1024
       });
@@ -94,16 +95,17 @@ describe('MemoryOptimizer', () => {
     });
 
     it('should detect high memory usage', () => {
+      // Critical path: heapUsed > maxHeapUsageMB * 0.9 (512 * 0.9 = 460.8 MB)
       jest.spyOn(process, 'memoryUsage').mockReturnValue({
-        rss: 100 * 1024 * 1024,
-        heapTotal: 200 * 1024 * 1024,
-        heapUsed: 150 * 1024 * 1024, // 150MB > 100MB threshold
+        rss: 600 * 1024 * 1024,
+        heapTotal: 600 * 1024 * 1024,
+        heapUsed: 470 * 1024 * 1024, // >460.8MB critical threshold
         external: 5 * 1024 * 1024,
         arrayBuffers: 1 * 1024 * 1024
       });
 
       const result = optimizer.checkMemoryUsage();
-      expect(result).toBe(true); // Above threshold
+      expect(result).toBe(true); // Above critical threshold
 
       jest.restoreAllMocks();
     });
@@ -135,10 +137,14 @@ describe('MemoryOptimizer', () => {
       const gcSpy = jest.fn();
       (global as any).gc = gcSpy;
 
+      // Advance fake time so timeSinceLastGC (Date.now() - lastGCTime) > 5000ms cooldown.
+      // lastGCTime is set to Date.now() at construction; advance relative time past 5s.
+      jest.advanceTimersByTime(6000);
+
       jest.spyOn(process, 'memoryUsage').mockReturnValue({
         rss: 100 * 1024 * 1024,
         heapTotal: 200 * 1024 * 1024,
-        heapUsed: 150 * 1024 * 1024, // Above threshold
+        heapUsed: 150 * 1024 * 1024, // Above gcThresholdMB (100MB default)
         external: 5 * 1024 * 1024,
         arrayBuffers: 1 * 1024 * 1024
       });

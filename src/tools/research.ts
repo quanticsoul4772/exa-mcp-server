@@ -2,9 +2,9 @@ import { z } from "zod";
 import { AxiosInstance } from "axios";
 import { ToolRegistry, ToolHandlerExtra } from "./config.js";
 import { ProgressTracker, extractToolContext } from "./progress-tracker.js";
-import { createExaClient, handleExaError } from "../utils/exaClient.js";
+import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
+import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
-import { getConfig } from "../config/index.js";
 import { logExaUsage } from "../utils/usageLogger.js";
 
 interface ExaResearchRequest {
@@ -42,7 +42,6 @@ class ResearchPoller {
     private client: AxiosInstance,
     private logger: any
   ) {
-    const config = getConfig();
     this.maxAttempts = 60; // 2 minutes max with 2 second intervals
     this.pollInterval = 2000; // 2 seconds
   }
@@ -98,7 +97,7 @@ export const researchTool: ToolRegistry = {
     const logger = createRequestLogger(requestId, "deep_research", context.requestId);
 
     const progress = new ProgressTracker(10, context.progressToken, context.server);
-    const client = createExaClient();
+    const client = getSharedExaClient();
     const poller = new ResearchPoller(client, logger);
 
     try {
@@ -132,6 +131,7 @@ export const researchTool: ToolRegistry = {
         excludeDomains: validatedArgs.excludeDomains
       };
 
+      await getGlobalRateLimiter().queue();
       const taskResponse = await client.post<ExaResearchTaskResponse>('/research', request);
       logger.log(`Task created: ${taskResponse.data.taskId}, estimated time: ${taskResponse.data.estimatedTime}s`);
 

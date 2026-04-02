@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ToolRegistry, ToolHandlerExtra } from "./config.js";
 import { ExaCrawlRequest, ExaSearchRequest, ExaSearchResponse } from "../types.js";
-import { createExaClient, handleExaError } from "../utils/exaClient.js";
+import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
+import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { getGlobalCache } from "../utils/cache.js";
@@ -131,7 +132,7 @@ export function createTool<
           await progress.increment(config.progressSteps[0] || "Preparing request...");
         }
 
-        const client = createExaClient();
+        const client = getSharedExaClient();
         const request = config.createRequest(validatedArgs);
 
         logger.log(`Sending request to Exa API for ${config.name}`);
@@ -141,6 +142,7 @@ export function createTool<
           await progress.increment(config.progressSteps[1] || "Sending API request...");
         }
 
+        await getGlobalRateLimiter().queue();
         const response = await client.post<TResponse>(
           config.endpoint,
           request

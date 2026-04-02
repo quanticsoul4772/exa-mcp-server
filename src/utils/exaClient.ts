@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
+let _sharedClient: AxiosInstance | null = null;
 import axiosRetry from "axios-retry";
 import { getConfig } from "../config/index.js";
 import { createRequestLogger, logWarn, generateRequestId } from "./pinoLogger.js";
@@ -43,7 +44,7 @@ export function createExaClient(): AxiosInstance {
       return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
              (error.response?.status !== undefined && error.response.status >= 500);
     },
-    onRetry: (retryCount, error, requestConfig) => {
+    onRetry: (retryCount, error, _requestConfig) => {
       logWarn(`Retrying request (attempt ${retryCount}/3): ${error.message}`);
     }
   });
@@ -150,4 +151,23 @@ export function createExaRequestHandler<TRequest, TResponse>(
       return handleExaError(error, toolName, logger);
     }
   };
+}
+
+/**
+ * Returns a module-level singleton Axios client configured for the Exa API.
+ * Avoids rebuilding the client (including retry config) on every tool call.
+ * Call resetSharedExaClient() in tests to get a fresh instance.
+ */
+export function getSharedExaClient(): AxiosInstance {
+  if (!_sharedClient) {
+    _sharedClient = createExaClient();
+  }
+  return _sharedClient;
+}
+
+/**
+ * Resets the shared client singleton. Intended for use in tests only.
+ */
+export function resetSharedExaClient(): void {
+  _sharedClient = null;
 }

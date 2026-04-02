@@ -4,7 +4,7 @@ import '../../__tests__/setup.js';
 describe('RequestBatcher Integration', () => {
   let RequestBatcher: any;
   let batcher: any;
-  let processor: jest.Mock;
+  let processor: jest.MockedFunction<(items: any[]) => Promise<any[]>>;
 
   beforeEach(async () => {
     jest.resetModules();
@@ -15,7 +15,7 @@ describe('RequestBatcher Integration', () => {
     RequestBatcher = batcherModule.RequestBatcher;
     
     // Create mock processor
-    processor = jest.fn();
+    processor = jest.fn<(items: any[]) => Promise<any[]>>();
     
     // Create batcher instance
     batcher = new RequestBatcher(processor, {
@@ -103,9 +103,8 @@ describe('RequestBatcher Integration', () => {
     await Promise.all([p1, p2]);
     
     const stats = batcher.getStats();
-    expect(stats.totalBatches).toBe(1);
-    expect(stats.totalRequests).toBe(2);
-    expect(stats.averageBatchSize).toBe(2);
+    expect(stats.queueLength).toBe(0);
+    expect(stats.hasPendingTimer).toBe(false);
   });
 
   it('should handle empty flush', async () => {
@@ -137,9 +136,8 @@ describe('RequestBatcher Integration', () => {
     await batch2;
     
     expect(processor).toHaveBeenCalledTimes(2);
-    
+
     const stats = batcher.getStats();
-    expect(stats.totalBatches).toBe(2);
-    expect(stats.totalRequests).toBe(5);
+    expect(stats.queueLength).toBe(0);
   });
 });

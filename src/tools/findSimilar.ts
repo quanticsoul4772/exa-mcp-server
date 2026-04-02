@@ -1,24 +1,6 @@
 import { z } from "zod";
 import { createTool } from "./tool-builder.js";
 
-interface ExaFindSimilarRequest {
-  url: string;
-  numResults?: number;
-  excludeSourceDomain?: boolean;
-  includeDomains?: string[];
-  excludeDomains?: string[];
-  startPublishedDate?: string;
-  endPublishedDate?: string;
-  includeText?: string;
-  excludeText?: string;
-  text?: boolean | { maxCharacters?: number };
-  highlights?: boolean | { maxCharacters?: number };
-  summary?: boolean;
-  extras?: { links?: boolean; imageUrls?: boolean };
-  maxAgeHours?: number;
-  moderation?: boolean;
-}
-
 interface ExaFindSimilarResponse {
   results: Array<{
     url: string;

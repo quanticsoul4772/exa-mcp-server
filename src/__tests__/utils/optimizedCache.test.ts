@@ -71,42 +71,45 @@ describe('OptimizedCache', () => {
 
   describe('TTL Management', () => {
     it('should expire entries after TTL', () => {
-      jest.useFakeTimers();
-      
+      const now = Date.now();
+      jest.useFakeTimers({ now });
+
       cache.set('key1', 'value1');
       expect(cache.get('key1')).toBe('value1');
-      
+
       // Advance time past TTL (5 minutes = 300000ms)
-      jest.advanceTimersByTime(300001);
-      
+      jest.setSystemTime(now + 300001);
+
       expect(cache.get('key1')).toBeUndefined();
-      
+
       jest.useRealTimers();
     });
 
     it('should not expire entries before TTL', () => {
-      jest.useFakeTimers();
-      
+      const now = Date.now();
+      jest.useFakeTimers({ now });
+
       cache.set('key1', 'value1');
-      
+
       // Advance time but not past TTL
-      jest.advanceTimersByTime(299999);
-      
+      jest.setSystemTime(now + 299999);
+
       expect(cache.get('key1')).toBe('value1');
-      
+
       jest.useRealTimers();
     });
 
     it('should use custom TTL', () => {
-      jest.useFakeTimers();
-      
+      const now = Date.now();
+      jest.useFakeTimers({ now });
+
       cache.set('key1', 'value1', 1000); // 1 second TTL
       expect(cache.get('key1')).toBe('value1');
-      
-      jest.advanceTimersByTime(1001);
-      
+
+      jest.setSystemTime(now + 1001);
+
       expect(cache.get('key1')).toBeUndefined();
-      
+
       jest.useRealTimers();
     });
   });
@@ -118,7 +121,7 @@ describe('OptimizedCache', () => {
       
       const stats = cache.getStats();
       expect(stats.size).toBe(2);
-      expect(stats.memoryUsed).toBeGreaterThan(0);
+      expect(stats.calculatedSize).toBeGreaterThan(0);
     });
 
     it('should evict oldest entries when max size reached', () => {
@@ -135,16 +138,8 @@ describe('OptimizedCache', () => {
       expect(smallCache.has('key4')).toBe(true);
     });
 
-    it('should handle memory pressure', () => {
-      const memoryOptimizer = (cache as any).memoryOptimizer;
-      memoryOptimizer.isUnderMemoryPressure.mockReturnValue(true);
-      
-      // Add items
-      cache.set('key1', 'value1');
-      cache.set('key2', 'value2');
-      
-      // Check that optimization is triggered
-      expect(memoryOptimizer.optimize).toHaveBeenCalled();
+    it.skip('should handle memory pressure', () => {
+      // MemoryOptimizer integration was removed from OptimizedCache
     });
   });
 

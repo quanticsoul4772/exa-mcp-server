@@ -45,7 +45,27 @@ jest.mock('../../utils/exaClient.js', () => ({
       }
     }))
   })),
+  getSharedExaClient: jest.fn(() => ({
+    post: jest.fn(() => Promise.resolve({
+      data: {
+        results: [{
+          id: '1',
+          title: 'Test Result',
+          url: 'https://example.com',
+          publishedDate: '2024-01-01',
+          author: 'Test Author',
+          text: 'Test content'
+        }]
+      }
+    }))
+  })),
   handleExaError: jest.fn()
+}));
+
+jest.mock('../../utils/rateLimiter.js', () => ({
+  getGlobalRateLimiter: jest.fn(() => ({
+    queue: jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  }))
 }));
 
 // Mock config module

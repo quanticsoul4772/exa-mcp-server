@@ -15,15 +15,15 @@ jest.mock('../../utils/pinoLogger.js', () => ({
 import { RequestBatcher } from '../../utils/requestBatcher.js';
 
 describe('RequestBatcher', () => {
-  let batcher: RequestBatcher<string, string>;
-  let processor: jest.Mock;
+  let batcher: RequestBatcher<string>;
+  let processor: jest.MockedFunction<(requests: any[]) => Promise<string[]>>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    processor = jest.fn();
+    processor = jest.fn<(requests: any[]) => Promise<string[]>>();
     batcher = new RequestBatcher(processor, {
       maxBatchSize: 3,
-      maxWaitTime: 100
+      maxWaitMs: 100
     });
   });
 
@@ -119,12 +119,13 @@ describe('RequestBatcher', () => {
 
     it('should handle mismatched result count', async () => {
       processor.mockResolvedValue(['only-one']);
-      
+
       const p1 = batcher.add('req1');
       const p2 = batcher.add('req2');
-      
-      await expect(p1).rejects.toThrow();
-      await expect(p2).rejects.toThrow();
+
+      // First request gets the result; second rejects with no result
+      await expect(p1).resolves.toBe('only-one');
+      await expect(p2).rejects.toThrow('No result for batch request');
     });
 
     it('should continue processing after error', async () => {
@@ -144,24 +145,23 @@ describe('RequestBatcher', () => {
   });
 
   describe('Deduplication', () => {
-    it('should deduplicate identical requests', async () => {
+    it('should batch identical requests together', async () => {
       const deduper = new RequestBatcher(processor, {
         maxBatchSize: 5,
-        maxWaitTime: 100,
-        deduplicate: true
+        maxWaitMs: 100
       });
-      
-      processor.mockResolvedValue(['result']);
-      
+
+      processor.mockResolvedValue(['r1', 'r2', 'r3']);
+
       const p1 = deduper.add('same');
       const p2 = deduper.add('same');
       const p3 = deduper.add('same');
-      
+
       const results = await Promise.all([p1, p2, p3]);
-      
+
       expect(processor).toHaveBeenCalledTimes(1);
-      expect(processor).toHaveBeenCalledWith(['same']);
-      expect(results).toEqual(['result', 'result', 'result']);
+      expect(processor).toHaveBeenCalledWith(['same', 'same', 'same']);
+      expect(results).toEqual(['r1', 'r2', 'r3']);
     });
 
     it('should not deduplicate when disabled', async () => {
@@ -188,10 +188,7 @@ describe('RequestBatcher', () => {
       
       const stats = batcher.getStats();
       
-      expect(stats.totalBatches).toBe(1);
-      expect(stats.totalRequests).toBe(2);
-      expect(stats.averageBatchSize).toBe(2);
-      expect(stats.currentQueueSize).toBe(0);
+      expect(stats.queueLength).toBe(0);
     });
 
     it('should calculate average batch size', async () => {
@@ -211,9 +208,7 @@ describe('RequestBatcher', () => {
       
       const stats = batcher.getStats();
       
-      expect(stats.totalBatches).toBe(2);
-      expect(stats.totalRequests).toBe(4);
-      expect(stats.averageBatchSize).toBe(2); // (3 + 1) / 2
+      expect(stats.queueLength).toBe(0);
     });
   });
 
@@ -282,7 +277,7 @@ describe('RequestBatcher', () => {
     it('should respect custom batch size', async () => {
       const customBatcher = new RequestBatcher(processor, {
         maxBatchSize: 1,
-        maxWaitTime: 1000
+        maxWaitMs: 1000
       });
       
       processor

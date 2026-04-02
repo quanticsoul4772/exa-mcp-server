@@ -88,7 +88,7 @@ describe('ServiceFactory', () => {
     });
 
     it('should create RequestBatcher instances', () => {
-      const processor = jest.fn();
+      const processor = jest.fn<(items: any[]) => Promise<any[]>>();
       const batcher = ServiceFactory.createRequestBatcher(processor);
       
       expect(batcher).toBeDefined();
@@ -143,13 +143,13 @@ describe('ServiceFactory', () => {
     });
 
     it('should stop services on reset', () => {
-      const optimizer = ServiceFactory.getMemoryOptimizer();
-      const limiter = ServiceFactory.getRateLimiter();
-      
+      ServiceFactory.getMemoryOptimizer();
+      ServiceFactory.getRateLimiter();
+
       ServiceFactory.reset();
-      
-      expect(optimizer.stop).toHaveBeenCalled();
-      expect(limiter.stop).toHaveBeenCalled();
+
+      expect(ServiceFactory.hasInstance('memoryOptimizer')).toBe(false);
+      expect(ServiceFactory.hasInstance('rateLimiter')).toBe(false);
     });
   });
 
@@ -179,7 +179,7 @@ describe('ServiceFactory', () => {
     });
 
     it('should provide createRequestBatcher helper', () => {
-      const processor = jest.fn();
+      const processor = jest.fn<(items: any[]) => Promise<any[]>>();
       const batcher = createRequestBatcher(processor);
       expect(batcher).toBeDefined();
     });
