@@ -26,7 +26,7 @@ const answerSchema = z.object({
 
 export const answerTool = createTool({
   name: "answer_question",
-  description: "Get direct answers to questions with citations using Exa AI - provides concise answers with source citations for quick Q&A without needing full search results",
+  description: "Get a direct answer to a factual question with citations. Use instead of exa_search when you want a synthesized answer, not raw search results. Does NOT return a list of links — returns a single answer with sources. Not suitable for open-ended research.",
   schema: answerSchema,
   enabled: true,
   endpoint: '/answer',

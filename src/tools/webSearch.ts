@@ -38,7 +38,7 @@ const webSearchSchema = z.object({
 
 export const webSearchTool = createSearchTool(
   "exa_search",
-  "Search the web using Exa AI - performs real-time web searches with configurable search types (instant/fast/auto/deep). Supports domain filtering, date ranges, content categories, freshness control, structured outputs, and returns content from the most relevant websites.",
+  "Search the web using Exa AI with configurable search types (instant/fast/auto/deep). Use for discovery when you don't have a URL yet. Use instead of answer_question when you need raw search results, not a synthesized answer. Use instead of code_search for non-code queries. Use instead of research_paper_search for general web content. Does NOT extract full page content — pair with crawling or batch_extract for that.",
   webSearchSchema,
   true,
   ({ query, numResults, searchType, maxAgeHours, includeDomains, excludeDomains,

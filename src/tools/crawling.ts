@@ -13,7 +13,7 @@ const crawlingSchema = z.object({
 
 export const crawlingTool = createCrawlTool(
   "crawling",
-  "Extract content from specific URLs using Exa AI - performs targeted crawling of web pages with freshness control. Useful for reading articles, PDFs, or any web page. Supports summaries and embedded link/image extraction.",
+  "Extract full content from a specific URL (article, PDF, or any web page). Use when you already have the URL and need its text. Use instead of exa_search when discovery is not needed. Does NOT search — requires an exact URL. Does NOT accept multiple URLs — use batch_extract for that.",
   crawlingSchema,
   false,
   ({ url, maxAgeHours, includeSummary, includeExtras }) => ({

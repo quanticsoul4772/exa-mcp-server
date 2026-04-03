@@ -35,7 +35,7 @@ const findSimilarSchema = z.object({
 
 export const findSimilarTool = createTool({
   name: "find_similar",
-  description: "Find pages similar in meaning to a provided URL using Exa AI semantic search. Supports freshness control, summaries, and domain filtering.",
+  description: "Find pages semantically similar to a reference URL. Use instead of exa_search when you have an example page and want more like it. Does NOT accept a query string — requires a URL. Does NOT search by keyword.",
   schema: findSimilarSchema,
   enabled: true,
   endpoint: '/findSimilar',

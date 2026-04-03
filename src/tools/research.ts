@@ -88,7 +88,7 @@ const researchSchema = z.object({
 
 export const researchTool: ToolRegistry = {
   name: "deep_research",
-  description: "Conduct complex multi-step research with structured output using Exa's Research API",
+  description: "Conduct complex multi-step research with structured output using Exa's Research API. Use instead of exa_search when the topic requires synthesis across multiple sources. Use instead of answer_question for open-ended research, not single Q&A. Slower than exa_search — runs async with progress tracking.",
   schema: researchSchema,
   enabled: true,
   handler: async (args: any, extra?: ToolHandlerExtra) => {

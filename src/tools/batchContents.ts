@@ -45,7 +45,7 @@ const batchContentsSchema = z.object({
 
 export const batchContentsTool = createTool({
   name: "batch_extract",
-  description: "Extract content from multiple URLs in a single request. Supports text, highlights, summaries, subpage crawling, and embedded link/image extraction.",
+  description: "Extract content from multiple URLs in a single request. Use instead of multiple crawling calls when you have a list of URLs. Does NOT search — requires known URLs. Supports text, highlights, summaries, subpage crawling, and embedded link/image extraction.",
   schema: batchContentsSchema,
   enabled: true,
   endpoint: '/contents',
