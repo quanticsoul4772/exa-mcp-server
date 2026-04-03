@@ -12,7 +12,7 @@ const twitterSearchSchema = z.object({
 
 export const twitterSearchTool = createSearchTool(
   "twitter_search",
-  "Search Twitter/X.com posts and accounts using Exa AI - performs targeted searches of Twitter (X.com) content including tweets, profiles, and discussions. Returns relevant tweets, profile information, and conversation threads based on your query. You can search for a user by x.com/username or from:username",
+  "Search Twitter/X.com posts, profiles, and threads. Use instead of exa_search for social media content. Does NOT search general web — restricted to x.com/twitter.com. Supports user lookup (x.com/username) and author filter (from:username).",
   twitterSearchSchema,
   false,
   ({ query, numResults, startPublishedDate, endPublishedDate }) => {

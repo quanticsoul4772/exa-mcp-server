@@ -10,7 +10,7 @@ const competitorFinderSchema = z.object({
 
 export const competitorFinderTool = createCompetitorFinderTool(
   "competitor_finder",
-  "Find competitors of a company using Exa AI - performs targeted searches to identify businesses that offer similar products or services. Describe what the company does (without mentioning its name) and optionally provide the company's website to exclude it from results.",
+  "Identify competitors by describing what a company does (not its name). Use instead of exa_search for competitive intelligence. Use instead of company_research when you want to find unknown competitors, not research a known company. Provide excludeDomain to filter out the target company from results.",
   competitorFinderSchema,
   false,
   ({ query, excludeDomain, numResults }) => {

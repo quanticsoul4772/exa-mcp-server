@@ -17,7 +17,7 @@ const companyResearchSchema = z.object({
 
 export const companyResearchTool = createSearchTool(
   "company_research",
-  "Research companies using Exa AI - performs targeted searches of company websites to gather comprehensive information. Returns detailed content from about pages, pricing, FAQs, blogs, and other relevant sections. Supports summaries and freshness control.",
+  "Research a specific company by crawling its website (about, pricing, FAQ, blog). Use instead of exa_search when you need structured company information, not general search results. Use instead of competitor_finder when researching a known company, not finding unknowns. Does NOT return competitor info — use competitor_finder for that.",
   companyResearchSchema,
   false,
   ({ query, subpages, subpageTarget, includeSummary, includeExtras, maxAgeHours }) => {

@@ -12,7 +12,7 @@ const researchPaperSearchSchema = z.object({
 
 export const researchPaperSearchTool = createSearchTool(
   "research_paper_search",
-  "Search across 100M+ research papers with full text access using Exa AI - performs targeted academic paper searches with deep research content coverage. Returns detailed information about relevant academic papers including titles, authors, publication dates, and full text excerpts. Control the number of results and character counts returned to balance comprehensiveness with conciseness based on your task requirements.",
+  "Search 100M+ academic papers with full text access. Use instead of exa_search for academic/scientific queries — optimized for research papers, not general web. Returns titles, authors, publication dates, and full text excerpts. Does NOT search general web content.",
   researchPaperSearchSchema,
   false,
   ({ query, numResults, maxCharacters }) => {
