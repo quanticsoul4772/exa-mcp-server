@@ -32,6 +32,7 @@ export async function sendProgressNotification(
     });
   } catch (error) {
     // Silently ignore notification errors to prevent tool failure
+    // eslint-disable-next-line no-console
     console.error("Failed to send progress notification:", error);
   }
 }
@@ -122,6 +123,7 @@ export function enhanceToolHandler(
 
     // Log request with metadata
     if (context.requestId) {
+      // eslint-disable-next-line no-console
       console.log(`[${toolName}] Processing request ${context.requestId}`);
     }
 
@@ -137,6 +139,7 @@ export function enhanceToolHandler(
 
       return result;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`[${toolName}] Error:`, error);
       throw error;
     }

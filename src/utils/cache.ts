@@ -15,7 +15,7 @@ interface CacheConfig {
 /**
  * Cached response data structure
  */
-interface CachedResponse<T = any> {
+interface CachedResponse<T = unknown> {
   data: T;
   timestamp: number;
   hitCount: number;
@@ -73,15 +73,15 @@ export class RequestCache {
   /**
    * Generate a cache key from request parameters
    */
-  private generateKey(endpoint: string, requestData: any): string {
-    const payload = JSON.stringify({ endpoint, ...requestData });
+  private generateKey(endpoint: string, requestData: unknown): string {
+    const payload = JSON.stringify({ endpoint, ...(requestData as object) });
     return createHash('sha256').update(payload).digest('hex').substring(0, 16);
   }
 
   /**
    * Get cached response if available and not expired
    */
-  get<T>(endpoint: string, requestData: any): T | null {
+  get<T>(endpoint: string, requestData: unknown): T | null {
     if (!this.config.enabled) {
       return null;
     }
@@ -111,7 +111,7 @@ export class RequestCache {
   /**
    * Store response in cache
    */
-  set<T>(endpoint: string, requestData: any, responseData: T): void {
+  set<T>(endpoint: string, requestData: unknown, responseData: T): void {
     if (!this.config.enabled) {
       return;
     }
@@ -213,8 +213,8 @@ export function resetGlobalCache(): void {
  * @deprecated Use getGlobalCache() instead for better error handling
  */
 export const globalCache = {
-  get: <T>(endpoint: string, requestData: any): T | null => getGlobalCache().get(endpoint, requestData),
-  set: <T>(endpoint: string, requestData: any, responseData: T): void => getGlobalCache().set(endpoint, requestData, responseData),
+  get: <T>(endpoint: string, requestData: unknown): T | null => getGlobalCache().get(endpoint, requestData),
+  set: <T>(endpoint: string, requestData: unknown, responseData: T): void => getGlobalCache().set(endpoint, requestData, responseData),
   clear: (): void => getGlobalCache().clear(),
   getStats: (): CacheStats => getGlobalCache().getStats(),
   isEnabled: (): boolean => getGlobalCache().isEnabled(),

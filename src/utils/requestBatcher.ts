@@ -3,7 +3,7 @@ import { structuredLogger } from './pinoLogger.js';
 interface BatchRequest<T> {
   resolve: (value: T) => void;
   reject: (error: Error) => void;
-  params: any;
+  params: unknown;
 }
 
 interface BatcherOptions {
@@ -25,7 +25,7 @@ export class RequestBatcher<T> {
   private oldestRequestTime: number | null = null;
 
   constructor(
-    private readonly batchProcessor: (requests: any[]) => Promise<T[]>,
+    private readonly batchProcessor: (requests: unknown[]) => Promise<T[]>,
     options: BatcherOptions = {}
   ) {
     this.maxBatchSize = options.maxBatchSize ?? 10;
@@ -36,7 +36,7 @@ export class RequestBatcher<T> {
   /**
    * Add request to batch queue
    */
-  async add(params: any): Promise<T> {
+  async add(params: unknown): Promise<T> {
     return new Promise((resolve, reject) => {
       this.queue.push({ resolve, reject, params });
 

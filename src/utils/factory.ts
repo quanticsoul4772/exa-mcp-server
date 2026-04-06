@@ -35,14 +35,14 @@ export interface ServiceConfig {
     allowLocalhost?: boolean;
     maxLength?: number;
   };
-  logger?: any;
+  logger?: unknown;
 }
 
 /**
  * Service factory for creating instances with dependency injection
  */
 export class ServiceFactory {
-  private static instances = new Map<string, any>();
+  private static instances = new Map<string, unknown>();
   private static config: ServiceConfig = {};
 
   /**
@@ -61,7 +61,7 @@ export class ServiceFactory {
       const optimizer = new MemoryOptimizer(this.config.memoryOptimizer);
       this.instances.set(key, optimizer);
     }
-    return this.instances.get(key);
+    return this.instances.get(key) as MemoryOptimizer;
   }
 
   /**
@@ -73,14 +73,14 @@ export class ServiceFactory {
       const cache = new OptimizedCache(this.config.cache);
       this.instances.set(key, cache);
     }
-    return this.instances.get(key);
+    return this.instances.get(key) as OptimizedCache;
   }
 
   /**
    * Create a new RequestBatcher instance
    */
   static createRequestBatcher<T>(
-    processor: (items: any[]) => Promise<T[]>,
+    processor: (items: unknown[]) => Promise<T[]>,
     options?: { maxBatchSize?: number; batchDelayMs?: number; maxWaitMs?: number }
   ): RequestBatcher<T> {
     return new RequestBatcher(processor, options);
@@ -107,7 +107,7 @@ export class ServiceFactory {
       const limiter = new RateLimiter(config);
       this.instances.set(key, limiter);
     }
-    return this.instances.get(key);
+    return this.instances.get(key) as RateLimiter;
   }
 
   /**
@@ -119,13 +119,13 @@ export class ServiceFactory {
       const validator = new URLValidator(this.config.urlValidator);
       this.instances.set(key, validator);
     }
-    return this.instances.get(key);
+    return this.instances.get(key) as URLValidator;
   }
 
   /**
    * Get the configured logger or default
    */
-  static getLogger(): any {
+  static getLogger(): unknown {
     return this.config.logger || structuredLogger;
   }
 
@@ -134,13 +134,13 @@ export class ServiceFactory {
    */
   static reset(): void {
     // Stop services that need cleanup
-    const memoryOptimizer = this.instances.get('memoryOptimizer');
-    if (memoryOptimizer && memoryOptimizer.stop) {
+    const memoryOptimizer = this.instances.get('memoryOptimizer') as { stop?: () => void } | undefined;
+    if (memoryOptimizer?.stop) {
       memoryOptimizer.stop();
     }
 
-    const rateLimiter = this.instances.get('rateLimiter');
-    if (rateLimiter && rateLimiter.stop) {
+    const rateLimiter = this.instances.get('rateLimiter') as { stop?: () => void } | undefined;
+    if (rateLimiter?.stop) {
       rateLimiter.stop();
     }
 
@@ -151,7 +151,7 @@ export class ServiceFactory {
   /**
    * Get a specific instance by key
    */
-  static getInstance(key: string): any {
+  static getInstance(key: string): unknown {
     return this.instances.get(key);
   }
 

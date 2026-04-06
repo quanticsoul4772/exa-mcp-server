@@ -30,7 +30,7 @@ export interface ComponentHealth {
   name: string;
   healthy: boolean;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -239,7 +239,7 @@ export class HealthCheckService {
   /**
    * Get system metrics
    */
-  private getMetrics(): Record<string, any> {
+  private getMetrics(): Record<string, unknown> {
     const uptime = Date.now() - this.startTime.getTime();
     const cache = getGlobalCache();
     const rateLimiter = getGlobalRateLimiter();

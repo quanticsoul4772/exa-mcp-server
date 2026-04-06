@@ -128,17 +128,18 @@ export class ResponseFormatter {
    * const errorMsg = ResponseFormatter.formatError(error, 'my_tool');
    * ```
    */
-  static formatError(error: any, toolName: string): string {
+  static formatError(error: unknown, toolName: string): string {
     let message = `Error in ${toolName.replace('_', ' ')}:\n\n`;
 
-    const status: number | undefined = error.response?.status;
+    const err = error as { response?: { status?: number; data?: { message?: string; error?: string } }; message?: string };
+    const status: number | undefined = err.response?.status;
 
-    if (error.response?.data?.message) {
-      message += error.response.data.message;
-    } else if (error.response?.data?.error) {
-      message += error.response.data.error;
-    } else if (error.message) {
-      message += error.message;
+    if (err.response?.data?.message) {
+      message += err.response.data.message;
+    } else if (err.response?.data?.error) {
+      message += err.response.data.error;
+    } else if (err.message) {
+      message += err.message;
     } else {
       message += `Unexpected error (type: ${typeof error}).`;
     }
@@ -315,7 +316,7 @@ export class ResponseFormatter {
   /**
    * Format raw JSON response (fallback)
    */
-  static formatRawResponse(data: any): string {
+  static formatRawResponse(data: unknown): string {
     return JSON.stringify(data, null, 2);
   }
 }

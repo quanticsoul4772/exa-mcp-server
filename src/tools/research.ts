@@ -10,7 +10,7 @@ import { logExaUsage } from "../utils/usageLogger.js";
 interface ExaResearchRequest {
   objective: string;
   model?: 'exa-research' | 'exa-research-pro';
-  outputSchema?: Record<string, any>;
+  outputSchema?: Record<string, unknown>;
   timeRange?: {
     startDate?: string;
     endDate?: string;
@@ -30,7 +30,7 @@ interface ExaResearchStatusResponse {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   progress?: number;
   currentStep?: string;
-  result?: any;
+  result?: unknown;
   error?: string;
 }
 
@@ -40,13 +40,13 @@ class ResearchPoller {
 
   constructor(
     private client: AxiosInstance,
-    private logger: any
+    private logger: ReturnType<typeof createRequestLogger>
   ) {
     this.maxAttempts = 60; // 2 minutes max with 2 second intervals
     this.pollInterval = 2000; // 2 seconds
   }
 
-  async pollTask(taskId: string, progress?: ProgressTracker): Promise<any> {
+  async pollTask(taskId: string, progress?: ProgressTracker): Promise<unknown> {
     let attempts = 0;
 
     while (attempts < this.maxAttempts) {
@@ -91,7 +91,7 @@ export const researchTool: ToolRegistry = {
   description: "Conduct complex multi-step research with structured output using Exa's Research API. Use instead of exa_search when the topic requires synthesis across multiple sources. Use instead of answer_question for open-ended research, not single Q&A. Slower than exa_search — runs async with progress tracking.",
   schema: researchSchema,
   enabled: true,
-  handler: async (args: any, extra?: ToolHandlerExtra) => {
+  handler: async (args: Record<string, unknown>, extra?: ToolHandlerExtra) => {
     const context = extractToolContext(extra);
     const requestId = context.requestId || generateRequestId();
     const logger = createRequestLogger(requestId, "deep_research", context.requestId);
@@ -155,19 +155,24 @@ export const researchTool: ToolRegistry = {
         // Unstructured output
         if (typeof result === 'string') {
           formattedOutput += result;
-        } else if (result.summary) {
-          formattedOutput += `### Summary\n\n${result.summary}\n\n`;
-          if (result.findings) {
-            formattedOutput += `### Key Findings\n\n`;
-            result.findings.forEach((finding: any, idx: number) => {
-              formattedOutput += `${idx + 1}. ${finding}\n`;
-            });
-          }
-          if (result.sources) {
-            formattedOutput += `\n### Sources\n\n`;
-            result.sources.forEach((source: any) => {
-              formattedOutput += `- [${source.title}](${source.url})\n`;
-            });
+        } else if (typeof result === 'object' && result !== null) {
+          const resultObj = result as { summary?: string; findings?: unknown[]; sources?: Array<{ title?: string; url?: string }> };
+          if (resultObj.summary) {
+            formattedOutput += `### Summary\n\n${resultObj.summary}\n\n`;
+            if (resultObj.findings) {
+              formattedOutput += `### Key Findings\n\n`;
+              resultObj.findings.forEach((finding, idx) => {
+                formattedOutput += `${idx + 1}. ${finding}\n`;
+              });
+            }
+            if (resultObj.sources) {
+              formattedOutput += `\n### Sources\n\n`;
+              resultObj.sources.forEach((source) => {
+                formattedOutput += `- [${source.title}](${source.url})\n`;
+              });
+            }
+          } else {
+            formattedOutput += JSON.stringify(result, null, 2);
           }
         } else {
           formattedOutput += JSON.stringify(result, null, 2);
@@ -186,11 +191,12 @@ export const researchTool: ToolRegistry = {
       };
 
     } catch (error) {
-      const statusCode = (error as any)?.response?.status;
+      const err = error as { response?: { status?: number }; message?: string };
+      const statusCode = err?.response?.status;
       const status = statusCode === 429 ? "rate_limit"
         : statusCode === 402 ? "quota_error"
         : "error";
-      logExaUsage("deep_research", status, String((error as any)?.message ?? "").slice(0, 80));
+      logExaUsage("deep_research", status, String(err?.message ?? "").slice(0, 80));
       logger.error(`Research failed: ${error}`);
       return handleExaError(error, "deep_research", logger);
     }

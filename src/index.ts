@@ -56,7 +56,7 @@ class ExaServer {
         const schema = tool.schema instanceof z.ZodObject ? tool.schema.shape : tool.schema;
 
         // Wrap the handler to inject the server instance for progress notifications
-        const enhancedHandler = async (args: any, extra: any) => {
+        const enhancedHandler = async (args: Record<string, unknown>, extra: Record<string, unknown>) => {
           // Pass the server instance to tools for v1.18.0 progress notifications
           const enhancedExtra: ToolHandlerExtra = {
             ...(extra || {}),
@@ -69,6 +69,7 @@ class ExaServer {
           tool.name,
           tool.description,
           schema,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           enhancedHandler as any
         );
         registeredTools.push(toolId);
@@ -127,15 +128,17 @@ async function main() {
 
     // List all available tools if requested
     if (argv['list-tools']) {
+      /* eslint-disable no-console */
       console.log("Available tools:");
-      
+
       Object.entries(toolRegistry).forEach(([id, tool]) => {
         console.log(`- ${id}: ${tool.name}`);
         console.log(`  Description: ${tool.description}`);
         console.log(`  Enabled by default: ${tool.enabled ? 'Yes' : 'No'}`);
         console.log();
       });
-      
+      /* eslint-enable no-console */
+
       process.exit(0);
     }
 

@@ -19,7 +19,7 @@ export interface ToolHandlerExtra {
   /** Metadata from the request (v1.18.0+) */
   _meta?: ToolMetadata;
   /** MCP server instance for sending notifications */
-  server?: any; // Will be typed properly when server is imported
+  server?: unknown; // Will be typed properly when server is imported
   /** Any other extra data */
   [key: string]: unknown;
 }
@@ -53,7 +53,7 @@ export interface ToolRegistry {
   /** Human-readable description of the tool's functionality */
   description: string;
   /** Zod schema defining the tool's parameters */
-  schema: z.ZodRawShape | z.ZodObject<any>;
+  schema: z.ZodRawShape | z.ZodObject<z.ZodRawShape>;
   /** Async function that executes the tool's logic */
   handler: ToolHandler;
   /** Whether the tool is enabled by default */

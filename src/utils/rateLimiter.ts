@@ -298,6 +298,7 @@ export function resetGlobalRateLimiter(): void {
  * Rate limiting middleware for tools
  * Wraps a tool handler with rate limiting
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function withRateLimit<T extends (...args: any[]) => Promise<any>>(
   handler: T,
   rateLimiter?: RateLimiter

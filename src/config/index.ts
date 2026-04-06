@@ -118,6 +118,7 @@ export function getConfig(): Config {
     return cachedConfig;
   } catch (error) {
     if (error instanceof z.ZodError) {
+      /* eslint-disable no-console */
       console.error('\n❌ Configuration validation failed:');
       console.error('=====================================');
       
@@ -151,6 +152,7 @@ export function getConfig(): Config {
     } else {
       console.error('❌ Unexpected configuration error:', error);
     }
+    /* eslint-enable no-console */
     
     // In test environment, throw the error instead of exiting
     if (process.env.NODE_ENV === 'test') {
@@ -164,7 +166,7 @@ export function getConfig(): Config {
 /**
  * Validates configuration without caching (useful for testing)
  */
-export function validateConfig(rawConfig?: Record<string, any>): Config {
+export function validateConfig(rawConfig?: Record<string, unknown>): Config {
   const configToValidate = rawConfig || createRawConfig();
   return configSchema.parse(configToValidate);
 }
@@ -179,7 +181,7 @@ export function clearConfigCache(): void {
 /**
  * Returns a sanitized version of the config for logging (secrets redacted)
  */
-export function getSanitizedConfig(): Record<string, any> {
+export function getSanitizedConfig(): Record<string, unknown> {
   const config = getConfig();
   
   return {

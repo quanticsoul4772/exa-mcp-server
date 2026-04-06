@@ -34,7 +34,7 @@ export interface ExaHighlightsOptions {
  */
 export interface ExaSummaryOptions {
   query?: string;
-  schema?: Record<string, any>;
+  schema?: Record<string, unknown>;
 }
 
 /**
@@ -75,7 +75,7 @@ export interface ExaSearchRequest {
   numResults: number;
   userLocation?: string;
   moderation?: boolean;
-  outputSchema?: Record<string, any>;
+  outputSchema?: Record<string, unknown>;
   systemPrompt?: string;
   additionalQueries?: string[];
   contents: ExaContentsOptions;

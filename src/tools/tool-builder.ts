@@ -12,7 +12,7 @@ import { logExaUsage } from "../utils/usageLogger.js";
 /**
  * Tool configuration types for different API endpoints
  */
-type ToolConfig<T extends z.ZodObject<any>, TRequest, TResponse> = {
+type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   name: string;
   description: string;
   schema: T;
@@ -53,7 +53,7 @@ function hasResults(data: unknown): data is ResponseWithResults {
  * @returns ToolRegistry instance compatible with MCP server
  */
 export function createTool<
-  T extends z.ZodObject<any>,
+  T extends z.ZodObject<z.ZodRawShape>,
   TRequest,
   TResponse
 >(
@@ -205,11 +205,12 @@ export function createTool<
         logger.complete();
         return result;
       } catch (error) {
-        const statusCode = (error as any)?.response?.status;
+        const err = error as { response?: { status?: number }; message?: string };
+        const statusCode = err?.response?.status;
         const status = statusCode === 429 ? "rate_limit"
           : statusCode === 402 ? "quota_error"
           : "error";
-        logExaUsage(config.name, status, String((error as any)?.message ?? "").slice(0, 80));
+        logExaUsage(config.name, status, String(err?.message ?? "").slice(0, 80));
         return handleExaError(error, config.name, logger);
       }
     },
@@ -219,14 +220,14 @@ export function createTool<
 /**
  * Helper function to extract query from validated args safely
  */
-function getQueryFromArgs<T extends Record<string, any>>(args: T): string {
+function getQueryFromArgs<T extends Record<string, unknown>>(args: T): string {
   return 'query' in args && typeof args.query === 'string' ? args.query : 'search request';
 }
 
 /**
  * Helper function to extract URL from validated args safely
  */
-function getUrlFromArgs<T extends Record<string, any>>(args: T): string {
+function getUrlFromArgs<T extends Record<string, unknown>>(args: T): string {
   return 'url' in args && typeof args.url === 'string' ? args.url : 'crawl request';
 }
 
@@ -234,7 +235,7 @@ function getUrlFromArgs<T extends Record<string, any>>(args: T): string {
  * Helper function to create search-based tools (web search, research papers, etc.)
  * Provides full type safety during tool creation
  */
-export function createSearchTool<T extends z.ZodObject<any>>(
+export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
   name: string,
   description: string,
   schema: T,
@@ -260,7 +261,7 @@ export function createSearchTool<T extends z.ZodObject<any>>(
  * Helper function to create crawl-based tools (URL content extraction)
  * Provides full type safety during tool creation
  */
-export function createCrawlTool<T extends z.ZodObject<any>>(
+export function createCrawlTool<T extends z.ZodObject<z.ZodRawShape>>(
   name: string,
   description: string,
   schema: T,
@@ -285,7 +286,7 @@ export function createCrawlTool<T extends z.ZodObject<any>>(
  * Helper function to create competitor finder tools
  * Provides full type safety during tool creation
  */
-export function createCompetitorFinderTool<T extends z.ZodObject<any>>(
+export function createCompetitorFinderTool<T extends z.ZodObject<z.ZodRawShape>>(
   name: string,
   description: string,
   schema: T,

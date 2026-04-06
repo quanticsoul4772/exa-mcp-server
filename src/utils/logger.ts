@@ -9,7 +9,7 @@ export enum LogLevel {
 }
 
 // Import config but handle potential circular dependency by deferring the import
-let configInstance: any = null;
+let configInstance: { logging: { level: string; redactLogs?: boolean } } | null = null;
 
 // Export for testing purposes
 export { configInstance };
@@ -22,12 +22,12 @@ function getCurrentLogLevel(): LogLevel {
   // Try to get config, but handle case where we're being called during config initialization
   try {
     if (!configInstance) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires -- dynamic require avoids circular dependency during config initialization
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- dynamic require avoids circular dependency during config initialization
       const { getConfig } = require('../config/index.js');
       configInstance = getConfig();
     }
     
-    const level = configInstance.logging.level;
+    const level = configInstance!.logging.level;
     switch (level) {
       case 'ERROR': return LogLevel.ERROR;
       case 'WARN': return LogLevel.WARN;
@@ -93,6 +93,7 @@ function logWithLevel(level: LogLevel, message: string): void {
     const timestamp = new Date().toISOString();
     const finalMessage = redactSensitiveData(message);
     
+    // eslint-disable-next-line no-console
     console.error(`[${timestamp}] [${levelName}] [EXA-MCP] ${finalMessage}`);
   }
 }

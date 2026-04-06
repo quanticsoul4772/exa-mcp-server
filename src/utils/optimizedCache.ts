@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { structuredLogger } from './pinoLogger.js';
 import { getConfig } from '../config/index.js';
 
-interface CacheEntry<T = any> {
+interface CacheEntry<T = unknown> {
   data: T;
   timestamp: number;
   size: number;
@@ -74,7 +74,7 @@ export class OptimizedCache {
   /**
    * Calculate approximate size of data
    */
-  private calculateSize(data: any): number {
+  private calculateSize(data: unknown): number {
     if (data === null || data === undefined) return 4;
     if (typeof data === 'string') return data.length || 1; // min 1 for empty string
     const json = JSON.stringify(data);
@@ -84,7 +84,7 @@ export class OptimizedCache {
   /**
    * Compress data if above threshold (placeholder for actual compression)
    */
-  private compress(data: any): any {
+  private compress<T>(data: T): T {
     const size = this.calculateSize(data);
     if (size > this.compressionThreshold) {
       this.stats.compressions++;
@@ -106,7 +106,7 @@ export class OptimizedCache {
   /**
    * Get item from cache with optimized retrieval
    */
-  get<T = any>(key: string | object): T | undefined {
+  get<T = unknown>(key: string | object): T | undefined {
     if (!this.enabled) return undefined;
 
     const cacheKey = this.generateKey(key);
@@ -127,7 +127,7 @@ export class OptimizedCache {
    * Set item in cache with size tracking
    * @param ttlMs optional TTL override in milliseconds
    */
-  set<T = any>(key: string | object, value: T, ttlMs?: number): void {
+  set<T = unknown>(key: string | object, value: T, ttlMs?: number): void {
     if (!this.enabled) return;
 
     const cacheKey = this.generateKey(key);
@@ -151,7 +151,7 @@ export class OptimizedCache {
   /**
    * Get multiple values by keys
    */
-  getMany<T = any>(keys: string[]): Record<string, T | undefined> {
+  getMany<T = unknown>(keys: string[]): Record<string, T | undefined> {
     const result: Record<string, T | undefined> = {};
     for (const key of keys) {
       result[key] = this.get<T>(key);
@@ -162,7 +162,7 @@ export class OptimizedCache {
   /**
    * Set multiple key-value pairs
    */
-  setMany<T = any>(entries: Record<string, T>): void {
+  setMany<T = unknown>(entries: Record<string, T>): void {
     for (const [key, value] of Object.entries(entries)) {
       this.set(key, value);
     }
