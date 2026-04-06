@@ -55,7 +55,7 @@ function getCurrentLogLevel(): LogLevel {
  */
 function redactSensitiveData(message: string): string {
   // Check if redaction is enabled via config (with fallback to env var)
-  let shouldRedact = true;
+  let shouldRedact: boolean;
   try {
     if (configInstance?.logging?.redactLogs !== undefined) {
       shouldRedact = configInstance.logging.redactLogs;

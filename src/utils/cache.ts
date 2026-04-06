@@ -190,7 +190,7 @@ export function getGlobalCache(): RequestCache {
   if (!_globalCache) {
     try {
       _globalCache = new RequestCache();
-    } catch (error) {
+    } catch (_error) {
       // If config validation fails (e.g., in tests), create a disabled cache
       _globalCache = new RequestCache({ enabled: false });
     }
