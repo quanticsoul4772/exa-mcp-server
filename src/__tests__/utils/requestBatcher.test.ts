@@ -239,12 +239,12 @@ describe('RequestBatcher', () => {
 
   describe('Custom Processor', () => {
     it('should work with async processor', async () => {
-      const asyncProcessor = jest.fn(async (items: string[]) => {
+      const asyncProcessor = jest.fn(async (items: unknown[]) => {
         await new Promise(resolve => setTimeout(resolve, 10));
         return items.map(item => `processed-${item}`);
       });
-      
-      const asyncBatcher = new RequestBatcher(asyncProcessor);
+
+      const asyncBatcher = new RequestBatcher<string>(asyncProcessor);
       
       const result = await asyncBatcher.add('test');
       

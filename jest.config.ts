@@ -15,6 +15,7 @@ const config: Config = {
         tsconfig: {
           module: 'esnext',
           moduleResolution: 'node',
+          types: ['jest', 'node'],
         },
       },
     ],
