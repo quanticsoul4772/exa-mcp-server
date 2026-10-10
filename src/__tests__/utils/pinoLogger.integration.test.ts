@@ -12,6 +12,11 @@ describe('PinoLogger Integration', () => {
 
     // Mock config
     jest.doMock('../../config/index.js', () => ({
+      getLoggingConfig: jest.fn(() => ({
+        server: { name: 'test-server', version: '1.0.0' },
+        logging: { level: 'ERROR', redactLogs: true },
+        environment: { nodeEnv: 'test' }
+      })),
       getConfig: jest.fn(() => ({
         exa: { apiKey: 'test-key', baseUrl: 'https://api.exa.ai' },
         server: { name: 'test-server', version: '1.0.0' },

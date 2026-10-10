@@ -130,35 +130,33 @@ describe('ResponseFormatter', () => {
     });
   });
 
-  describe('truncateText', () => {
-    it('should truncate long text', () => {
+  describe('full content', () => {
+    it('shows the whole fetched text, whitespace collapsed', () => {
       const result: ExaSearchResult = {
         id: '1',
         title: 'Test',
         url: 'https://example.com',
-        publishedDate: '2024-01-01',
-        author: '',
-        text: 'A'.repeat(400),
+        text: 'A'.repeat(400) + '\n\n  end',
+        highlights: ['B'.repeat(450)],
       };
 
       const formatted = ResponseFormatter.formatSearchResult(result, 1);
-      expect(formatted).toContain('...');
-      expect(formatted.indexOf('A'.repeat(300))).toBeGreaterThan(-1);
+      expect(formatted).toContain('A'.repeat(400) + ' end');
+      expect(formatted).toContain('B'.repeat(450));
+      expect(formatted).not.toContain('...');
     });
 
-    it('should not truncate short text', () => {
+    it('shows subpage summary and text', () => {
       const result: ExaSearchResult = {
         id: '1',
-        title: 'Test',
         url: 'https://example.com',
-        publishedDate: '2024-01-01',
-        author: '',
-        text: 'Short text',
+        subpages: [{ url: 'https://example.com/about', title: 'About', summary: 'Summary: Who we are', text: 'Founded in 2020' }],
       };
 
       const formatted = ResponseFormatter.formatSearchResult(result, 1);
-      expect(formatted).toContain('Short text');
-      expect(formatted).not.toContain('...');
+      expect(formatted).toContain('About: https://example.com/about');
+      expect(formatted).toContain('Summary: Who we are');
+      expect(formatted).toContain('Text: Founded in 2020');
     });
   });
 

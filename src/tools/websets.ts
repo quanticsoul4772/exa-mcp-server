@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createActionTool, requireArg } from "./action-tool.js";
+import { createActionTool, pathSegment, requireArg } from "./action-tool.js";
 
 /** Websets live under their own base path on the Exa API host */
 const WEBSETS_BASE = '/websets/v0/websets';
@@ -118,11 +118,11 @@ export const websetsTool = createActionTool({
         return page.data.length ? `${page.data.length} webset(s):\n${page.data.map(describeWebset).join('\n')}${pageNote(page)}` : 'No websets.';
       }
       case 'get': {
-        return describeWebset(await exa.get<ExaWebset>(`${WEBSETS_BASE}/${requireArg(args.websetId, 'websetId', 'get')}`));
+        return describeWebset(await exa.get<ExaWebset>(`${WEBSETS_BASE}/${pathSegment(requireArg(args.websetId, 'websetId', 'get'))}`));
       }
       case 'list_items': {
         const id = requireArg(args.websetId, 'websetId', 'list_items');
-        const page = await exa.get<ExaList<ExaWebsetItem>>(`${WEBSETS_BASE}/${id}/items`, pageParams);
+        const page = await exa.get<ExaList<ExaWebsetItem>>(`${WEBSETS_BASE}/${pathSegment(id)}/items`, pageParams);
         return page.data.length
           ? `${page.data.length} item(s):\n${page.data.map((item, i) => describeItem(item, i + 1)).join('\n')}${pageNote(page)}`
           : 'No items yet (the Webset may still be running).';

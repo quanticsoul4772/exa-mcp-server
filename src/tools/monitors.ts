@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createActionTool, requireArg } from "./action-tool.js";
+import { createActionTool, pathSegment, requireArg } from "./action-tool.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { ExaGrounding, ExaSearchResult } from "../types.js";
 
@@ -113,7 +113,7 @@ export const monitorsTool = createActionTool({
           : 'No monitors.';
       }
       case 'get': {
-        const m = await exa.get<ExaMonitor>(`/monitors/${requireArg(args.monitorId, 'monitorId', 'get')}`);
+        const m = await exa.get<ExaMonitor>(`/monitors/${pathSegment(requireArg(args.monitorId, 'monitorId', 'get'))}`);
         return describeMonitor(m);
       }
       case 'update': {
@@ -126,17 +126,17 @@ export const monitorsTool = createActionTool({
           ...(args.webhookUrl && { webhook: { url: args.webhookUrl } }),
           ...(args.status && { status: args.status })
         };
-        const m = await exa.patch<ExaMonitor>(`/monitors/${id}`, body);
+        const m = await exa.patch<ExaMonitor>(`/monitors/${pathSegment(id)}`, body);
         return `Monitor updated:\n${describeMonitor(m)}`;
       }
       case 'delete': {
         const id = requireArg(args.monitorId, 'monitorId', 'delete');
-        await exa.delete(`/monitors/${id}`);
+        await exa.delete(`/monitors/${pathSegment(id)}`);
         return `Monitor ${id} deleted.`;
       }
       case 'list_runs': {
         const id = requireArg(args.monitorId, 'monitorId', 'list_runs');
-        const page = await exa.get<ExaList<ExaMonitorRun>>(`/monitors/${id}/runs`, pageParams);
+        const page = await exa.get<ExaList<ExaMonitorRun>>(`/monitors/${pathSegment(id)}/runs`, pageParams);
         return page.data.length
           ? `${page.data.length} run(s) for ${id}:\n${page.data.map(r => `- ${r.id}: ${r.status}${r.failReason ? ` (${r.failReason})` : ''}, ${r.createdAt}`).join('\n')}${pageNote(page)}`
           : `No runs yet for ${id}.`;
@@ -144,7 +144,7 @@ export const monitorsTool = createActionTool({
       case 'get_run': {
         const id = requireArg(args.monitorId, 'monitorId', 'get_run');
         const runId = requireArg(args.runId, 'runId', 'get_run');
-        return describeRun(await exa.get<ExaMonitorRun>(`/monitors/${id}/runs/${runId}`));
+        return describeRun(await exa.get<ExaMonitorRun>(`/monitors/${pathSegment(id)}/runs/${pathSegment(runId)}`));
       }
     }
   }

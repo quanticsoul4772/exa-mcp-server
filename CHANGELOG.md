@@ -23,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.5.1] - 2026-10-10
+
+### Fixed
+- dotenv printed a banner to stdout at every start, which corrupts the stdio protocol stream. It now loads quietly.
+- Progress notifications never reached the client: the server called `notification()` on `McpServer`, which has no such method. Tools now use the SDK's `sendNotification` from the request context, and accept numeric progress tokens.
+- Client cancellation was ignored. Requests now carry the abort signal, and `agent_run` stops polling at once. If the cancelled call started the run, the run is cancelled on Exa (the caller never received its id); a run resumed by `runId` keeps going.
+- Retries could duplicate billable resources: POSTs to `/agent/runs`, `/monitors` and `/websets` were retried on 5xx and network errors. Only GET and the read-only POST endpoints are retried now, 429 is retried, and `Retry-After` is honored.
+- `--list-tools` exited when `EXA_API_KEY` was unset, because the logger loaded the full config.
+- Ids are URL-encoded in request paths.
+- Fetched content was thrown away: search fetched 3000 characters per result and showed 300, highlights were cut to 200 characters, answer citations to 300, and subpage text was dropped. Everything fetched is now shown.
+- Empty result lists were cached, and requests were built three times per call.
+- `agent_run` rejects `maxCostDollars` for unmetered efforts and `maxDurationSeconds` outside `ultra` before calling Exa (Exa rejects them).
+
+### Changed
+- `exa_search` returns highlights by default instead of page text; `includePageText` or `textMaxCharacters` adds text.
+- `web_fetch` keeps the default text within 100,000 characters in total (10,000 per URL, less when many URLs are fetched); an explicit `textMaxCharacters` is honored.
+- Deep search types and `exa-research`/`exa-pro` answers use a 300 s timeout.
+
 ## [0.5.0] - 2026-10-10
 
 Brought the server in line with the current Exa API. Several default tools were failing on every call.

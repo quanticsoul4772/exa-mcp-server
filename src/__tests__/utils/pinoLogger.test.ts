@@ -39,6 +39,11 @@ jest.mock('pino', () => {
 
 // Mock the config
 jest.mock('../../config/index.js', () => ({
+  getLoggingConfig: () => ({
+    logging: { level: 'DEBUG', redactLogs: false },
+    server: { name: 'test-server', version: '1.0.0' },
+    environment: { nodeEnv: 'test' }
+  }),
   getConfig: () => ({
     logging: {
       level: 'DEBUG',

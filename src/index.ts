@@ -54,22 +54,17 @@ class ExaServer {
         // Convert ZodObject to ZodRawShape for MCP server compatibility
         const schema = tool.schema instanceof z.ZodObject ? tool.schema.shape : tool.schema;
 
-        // Wrap the handler to inject the server instance for progress notifications
-        const enhancedHandler = async (args: Record<string, unknown>, extra: Record<string, unknown>) => {
-          // Pass the server instance to tools for v1.18.0 progress notifications
-          const enhancedExtra: ToolHandlerExtra = {
-            ...(extra || {}),
-            server: this.server
-          };
-          return tool.handler(args, enhancedExtra);
-        };
+        // The SDK's extra carries the abort signal, request id, progress token
+        // and sendNotification; tools read those fields directly
+        const handler = async (args: Record<string, unknown>, extra: ToolHandlerExtra) =>
+          tool.handler(args, extra);
 
         this.server.tool(
           tool.name,
           tool.description,
           schema,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          enhancedHandler as any
+          handler as any
         );
         registeredTools.push(toolId);
       }

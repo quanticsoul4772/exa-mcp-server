@@ -1,9 +1,10 @@
+import { AxiosInstance } from "axios";
 import { z } from "zod";
 import { ToolRegistry, ToolHandlerExtra, ToolResult } from "./config.js";
 import { ProgressTracker, extractToolContext } from "./progress-tracker.js";
 import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
 import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
-import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
+import { createRequestLogger, generateRequestId, logWarn } from "../utils/pinoLogger.js";
 import { logExaUsage } from "../utils/usageLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { ExaCostDollars, ExaGrounding } from "../types.js";
@@ -85,13 +86,58 @@ export function formatAgentRun(run: ExaAgentRun): string {
   return lines.join('\n');
 }
 
+/**
+ * Wait for ms, ending early (with an error) if the signal aborts
+ */
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("aborted"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason ?? new Error("aborted"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * On client cancellation: cancel a run this call created (the caller never
+ * received its id, so it could not be resumed and would spend to its cap).
+ * A run the caller resumed by runId keeps going; the caller has its id.
+ * Returns a note describing what happened.
+ */
+export async function handleCancel(
+  client: Pick<AxiosInstance, 'post'>,
+  runId: string | undefined,
+  createdHere: boolean
+): Promise<string> {
+  if (!runId) return "no run was created";
+  if (!createdHere) return `run ${runId} continues on Exa; resume with runId`;
+  try {
+    // Deliberately not passing the aborted signal: this request must go out.
+    // /cancel, not /stop: Exa's graceful stop works only for 'ultra' runs.
+    await client.post(`/agent/runs/${encodeURIComponent(runId)}/cancel`, {});
+    return `run ${runId} was cancelled on Exa`;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return `run ${runId} could NOT be cancelled (${detail}); it continues on Exa until its cost cap`;
+  }
+}
+
 function textResult(text: string, isError = false): ToolResult {
   return { content: [{ type: "text", text }], ...(isError && { isError: true }) };
 }
 
 export const agentRunTool: ToolRegistry = {
   name: "agent_run",
-  description: "Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting.",
+  description: "Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.",
   schema: agentRunSchema,
   enabled: false,
   handler: async (args: Record<string, unknown>, extra?: ToolHandlerExtra) => {
@@ -107,17 +153,30 @@ export const agentRunTool: ToolRegistry = {
     if (!validated.query && !validated.runId) {
       return textResult("Invalid arguments for agent_run: provide query (new run) or runId (existing run)", true);
     }
+    // Exa accepts budget caps only for metered efforts ('auto', the default, and 'ultra')
+    const metered = validated.effort === undefined || validated.effort === 'auto' || validated.effort === 'ultra';
+    if (validated.maxCostDollars !== undefined && !metered) {
+      return textResult(`Invalid arguments for agent_run: maxCostDollars applies only to effort 'auto' or 'ultra', not '${validated.effort}'`, true);
+    }
+    if (validated.maxDurationSeconds !== undefined && validated.effort !== 'ultra') {
+      return textResult("Invalid arguments for agent_run: maxDurationSeconds applies only to effort 'ultra'", true);
+    }
 
     const client = getSharedExaClient();
-    const progress = new ProgressTracker(100, context.progressToken, context.server);
+    const progress = new ProgressTracker(100, context.progressToken, context.sendNotification);
+    const signal = context.signal;
+    const reqOpts = signal ? { signal } : {};
+    let runId = validated.runId;
+    // True when this call started the run: the caller has not seen its id yet
+    let createdHere = false;
 
     try {
-      let runId = validated.runId;
       if (!runId) {
         logger.start(`Agent run: "${validated.query}"`);
         await getGlobalRateLimiter().queue();
-        const created = await client.post<ExaAgentRun>('/agent/runs', buildCreateRequest(validated));
+        const created = await client.post<ExaAgentRun>('/agent/runs', buildCreateRequest(validated), reqOpts);
         runId = created.data.id;
+        createdHere = true;
         logger.log(`Agent run created: ${runId}`);
         await progress.update(1, `Run ${runId} created`);
       } else {
@@ -127,7 +186,7 @@ export const agentRunTool: ToolRegistry = {
       const deadline = Date.now() + validated.waitSeconds * 1000;
       for (;;) {
         await getGlobalRateLimiter().queue();
-        const run = (await client.get<ExaAgentRun>(`/agent/runs/${runId}`)).data;
+        const run = (await client.get<ExaAgentRun>(`/agent/runs/${encodeURIComponent(runId)}`, reqOpts)).data;
 
         if (TERMINAL.has(run.status)) {
           await progress.complete(`Run ${run.status}`);
@@ -145,9 +204,15 @@ export const agentRunTool: ToolRegistry = {
 
         const elapsedPct = Math.min(99, Math.max(1, Math.round(100 - (remainingMs / (validated.waitSeconds * 1000)) * 100)));
         await progress.update(elapsedPct, `Run ${run.status}...`);
-        await new Promise(resolve => setTimeout(resolve, Math.min(agentRunTiming.pollIntervalMs, remainingMs)));
+        await abortableSleep(Math.min(agentRunTiming.pollIntervalMs, remainingMs), signal);
       }
     } catch (error) {
+      if (signal?.aborted) {
+        const note = await handleCancel(client, runId, createdHere);
+        logWarn(`agent_run cancelled by client: ${note}`);
+        logExaUsage("agent_run", "cancelled", runId ?? "");
+        return textResult(`agent_run cancelled: ${note}.`, true);
+      }
       const err = error as { response?: { status?: number }; message?: string };
       const statusCode = err?.response?.status;
       const status = statusCode === 429 ? "rate_limit" : statusCode === 402 ? "quota_error" : "error";

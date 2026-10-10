@@ -23,7 +23,15 @@ type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   getStartContext: (args: z.infer<T>) => string;
   /** Optional progress steps for progress tracking */
   progressSteps?: string[];
+  /** Per-call request timeout in ms; undefined uses the client default (EXA_TIMEOUT) */
+  timeoutMs?: (args: z.infer<T>) => number | undefined;
 };
+
+/**
+ * Timeout for Exa calls that can run for minutes (deep search, research-grade
+ * answers). Matches the 300 s Exa's own MCP server allows.
+ */
+export const LONG_REQUEST_TIMEOUT_MS = 300_000;
 
 /**
  * True when the request asks Exa to fetch fresh content (maxAgeHours 0),
@@ -76,25 +84,21 @@ export function createTool<
     schema: config.schema,
     enabled: config.enabled,
     handler: async (args, extra) => {
-      // Extract v1.18.0 metadata and context
       const context = extractToolContext(extra as ToolHandlerExtra);
-
-      // Use metadata requestId if available, otherwise generate one
       const requestId = context.requestId || generateRequestId();
       const logger = createRequestLogger(requestId, config.name, context.requestId);
 
-      // Create progress tracker if steps are defined
       const progress = config.progressSteps
-        ? new ProgressTracker(
-            config.progressSteps.length,
-            context.progressToken,
-            context.server
-          )
+        ? new ProgressTracker(config.progressSteps.length, context.progressToken, context.sendNotification)
         : null;
+      const step = async (index: number, fallback: string) => {
+        if (progress && config.progressSteps && config.progressSteps.length > index) {
+          await progress.increment(config.progressSteps[index] || fallback);
+        }
+      };
 
       // Validate arguments with strict parsing - this provides runtime type safety
       const validationResult = config.schema.safeParse(args);
-      
       if (!validationResult.success) {
         logger.error(`Validation failed: ${JSON.stringify(validationResult.error.issues)}`);
         return {
@@ -106,120 +110,76 @@ export function createTool<
         };
       }
 
-      // After validation, we know args conform to z.infer<T>
       const validatedArgs = validationResult.data as z.infer<T>;
       logger.start(config.getStartContext(validatedArgs));
-
-      // Send initial progress if available
       if (progress) {
         await progress.update(0, "Starting request...");
       }
 
       try {
-        // Get cache instance using lazy initialization
         const cache = getGlobalCache();
-        
+        const request = config.createRequest(validatedArgs);
+
         // Check cache first, unless the caller asked for fresh content
-        const cachedResponse = requestsFreshContent(config.createRequest(validatedArgs))
+        const cachedResponse = requestsFreshContent(request)
           ? null
-          : cache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
+          : cache.get<TResponse>(config.endpoint, request);
         if (cachedResponse) {
           logger.log(`Cache hit for ${config.name}`);
           if (progress) {
             await progress.complete("Using cached response");
           }
-          const formattedResponse = config.formatResponse(cachedResponse, config.name);
-          const result = {
-            content: [{
-              type: "text" as const,
-              text: formattedResponse
-            }]
-          };
           logExaUsage(config.name, "cache_hit");
           logger.complete();
-          return result;
-        }
-
-        // Update progress for cache miss
-        if (progress && config.progressSteps && config.progressSteps.length > 0) {
-          await progress.increment(config.progressSteps[0] || "Preparing request...");
-        }
-
-        const client = getSharedExaClient();
-        const request = config.createRequest(validatedArgs);
-
-        logger.log(`Sending request to Exa API for ${config.name}`);
-
-        // Update progress before API call
-        if (progress && config.progressSteps && config.progressSteps.length > 1) {
-          await progress.increment(config.progressSteps[1] || "Sending API request...");
-        }
-
-        await getGlobalRateLimiter().queue();
-        const response = await client.post<TResponse>(
-          config.endpoint,
-          request
-        );
-
-        // Cache the response data
-        cache.set(config.endpoint, request, response.data);
-
-        logger.log(`Received response from Exa API for ${config.name}`);
-
-        // Update progress after API response
-        if (progress && config.progressSteps && config.progressSteps.length > 2) {
-          await progress.increment(config.progressSteps[2] || "Processing response...");
-        }
-
-        // Handle empty responses based on response type
-        if (!response.data) {
-          logger.log(`Warning: Empty response from Exa API for ${config.name}`);
           return {
-            content: [{
-              type: "text" as const,
-              text: `No results found for ${config.name}. Please try a different query.`
-            }]
+            content: [{ type: "text" as const, text: config.formatResponse(cachedResponse, config.name) }]
           };
         }
 
-        // Check for results array (search responses) - use proper type guard
+        await step(0, "Preparing request...");
+        logger.log(`Sending request to Exa API for ${config.name}`);
+        await step(1, "Sending API request...");
+
+        await getGlobalRateLimiter().queue();
+        const timeout = config.timeoutMs?.(validatedArgs);
+        const response = await getSharedExaClient().post<TResponse>(config.endpoint, request, {
+          ...(context.signal && { signal: context.signal }),
+          ...(timeout !== undefined && { timeout })
+        });
+        logger.log(`Received response from Exa API for ${config.name}`);
+        await step(2, "Processing response...");
+
+        const noResults = {
+          content: [{
+            type: "text" as const,
+            text: `No results found for ${config.name}. Please try a different query.`
+          }]
+        };
+        if (!response.data) {
+          logger.log(`Warning: Empty response from Exa API for ${config.name}`);
+          return noResults;
+        }
         if (hasResults(response.data)) {
           // /contents reports per-URL failures in statuses; let the formatter show them
-          const hasStatuses = Array.isArray((response.data as { statuses?: unknown[] }).statuses)
-            && ((response.data as { statuses?: unknown[] }).statuses?.length ?? 0) > 0;
-          if (response.data.results.length === 0 && !hasStatuses) {
+          const statuses = (response.data as { statuses?: unknown[] }).statuses;
+          if (response.data.results.length === 0 && !(Array.isArray(statuses) && statuses.length > 0)) {
             logger.log(`Warning: No results found for ${config.name}`);
-            return {
-              content: [{
-                type: "text" as const,
-                text: `No results found for ${config.name}. Please try a different query.`
-              }]
-            };
+            return noResults;
           }
           logger.log(`Found ${response.data.results.length} results for ${config.name}`);
         }
 
-        // Update progress for formatting
-        if (progress && config.progressSteps && config.progressSteps.length > 3) {
-          await progress.increment(config.progressSteps[3] || "Formatting results...");
-        }
+        // Only non-empty responses are cached
+        cache.set(config.endpoint, request, response.data);
 
-        const formattedResponse = config.formatResponse(response.data, config.name);
-        const result = {
-          content: [{
-            type: "text" as const,
-            text: formattedResponse
-          }]
-        };
-
-        // Mark progress as complete
+        await step(3, "Formatting results...");
+        const text = config.formatResponse(response.data, config.name);
         if (progress) {
           await progress.complete("Request completed successfully");
         }
-
         logExaUsage(config.name, "ok");
         logger.complete();
-        return result;
+        return { content: [{ type: "text" as const, text }] };
       } catch (error) {
         const err = error as { response?: { status?: number }; message?: string };
         const statusCode = err?.response?.status;
@@ -251,7 +211,8 @@ export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
   enabled: boolean,
   createRequest: (args: z.infer<T>) => ExaSearchRequest,
   formatResponse?: (data: ExaSearchResponse, toolName: string) => string,
-  progressSteps?: string[]
+  progressSteps?: string[],
+  timeoutMs?: (args: z.infer<T>) => number | undefined
 ): ToolRegistry {
   return createTool({
     name,
@@ -262,6 +223,7 @@ export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
     createRequest,
     formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
     getStartContext: (args) => getQueryFromArgs(args),
-    progressSteps
+    progressSteps,
+    timeoutMs
   });
 }

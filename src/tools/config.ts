@@ -1,27 +1,30 @@
 import { z } from "zod";
 
 /**
- * Metadata that can be passed with tool requests (v1.18.0+)
+ * Request metadata sent by the client (`params._meta`)
  */
 export interface ToolMetadata {
-  /** Token for sending progress notifications */
-  progressToken?: string;
-  /** Request ID for correlation */
-  requestId?: string;
+  /** Token for sending progress notifications (MCP allows string or integer) */
+  progressToken?: string | number;
   /** Additional metadata fields */
   [key: string]: unknown;
 }
 
 /**
- * Extra context passed to tool handlers
+ * The parts of the SDK's request handler context (`extra`) that tools use
  */
 export interface ToolHandlerExtra {
-  /** Metadata from the request (v1.18.0+) */
+  /** Metadata from the request */
   _meta?: ToolMetadata;
-  /** MCP server instance for sending notifications */
-  server?: unknown; // Will be typed properly when server is imported
-  /** Any other extra data */
-  [key: string]: unknown;
+  /** JSON-RPC id of the request */
+  requestId?: string | number;
+  /** Aborted when the client cancels the request */
+  signal?: AbortSignal;
+  /** Sends a notification related to this request */
+  sendNotification?: (notification: {
+    method: string;
+    params?: Record<string, unknown>;
+  }) => Promise<void>;
 }
 
 /**

@@ -23,16 +23,24 @@ export interface ExaCaller {
   delete<T>(path: string): Promise<T>;
 }
 
-function createCaller(client: AxiosInstance): ExaCaller {
+/**
+ * Encode one id for use as a URL path segment
+ */
+export function pathSegment(id: string): string {
+  return encodeURIComponent(id);
+}
+
+function createCaller(client: AxiosInstance, signal?: AbortSignal): ExaCaller {
+  const opts = signal ? { signal } : {};
   const limited = async <T>(fn: () => Promise<{ data: T }>): Promise<T> => {
     await getGlobalRateLimiter().queue();
     return (await fn()).data;
   };
   return {
-    get: (path, params) => limited(() => client.get(path, params ? { params } : undefined)),
-    post: (path, body) => limited(() => client.post(path, body)),
-    patch: (path, body) => limited(() => client.patch(path, body)),
-    delete: (path) => limited(() => client.delete(path))
+    get: (path, params) => limited(() => client.get(path, { ...opts, ...(params && { params }) })),
+    post: (path, body) => limited(() => client.post(path, body, opts)),
+    patch: (path, body) => limited(() => client.patch(path, body, opts)),
+    delete: (path) => limited(() => client.delete(path, opts))
   };
 }
 
@@ -72,7 +80,7 @@ export function createActionTool<T extends z.ZodObject<z.ZodRawShape>>(config: {
       const validated = validation.data as z.infer<T>;
       logger.start(`${config.name}: ${String((validated as { action?: unknown }).action ?? '')}`);
       try {
-        const text = await config.run(validated, createCaller(getSharedExaClient()));
+        const text = await config.run(validated, createCaller(getSharedExaClient(), context.signal));
         logExaUsage(config.name, "ok", String((validated as { action?: unknown }).action ?? ''));
         logger.complete();
         return { content: [{ type: "text", text }] };
