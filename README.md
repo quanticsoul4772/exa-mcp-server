@@ -91,6 +91,12 @@ Old names in `--tools` are mapped to their replacements, with a warning in the l
 // Structured, cited answer from search results
 { "tool": "exa_search", "arguments": { "query": "Exa AI headquarters", "outputSchema": { "type": "object", "properties": { "city": { "type": "string" } } } } }
 
+// Read a long page but return only the 3 passages that answer a question (Voyage)
+{ "tool": "web_fetch", "arguments": { "urls": ["https://en.wikipedia.org/wiki/Large_language_model"], "relevantTo": "How do LLMs handle long context?", "topChunks": 3 } }
+
+// Search, then rerank 3x candidates with Voyage and keep the best 5
+{ "tool": "exa_search", "arguments": { "query": "Rust HTTP load testing tools", "numResults": 5, "rerank": true } }
+
 // Read several pages, forcing a fresh crawl
 { "tool": "web_fetch", "arguments": { "urls": ["https://example.com/a", "https://example.com/b"], "maxAgeHours": 0, "excludeSections": ["navigation", "footer"] } }
 
@@ -126,6 +132,10 @@ exa-mcp-server                                        # tools on by default
 | `NODE_ENV` | No | `development` | Environment mode |
 | `REDACT_LOGS` | No | `true` | Redact sensitive data in logs |
 | `EXA_USAGE_CSV` | No | unset | If set, append one CSV line per tool call to this file |
+| `VOYAGE_API_KEY` | For `rerank` / `relevantTo` | unset | Voyage AI key. Those options return an error without it; nothing else uses Voyage |
+| `VOYAGE_RERANK_MODEL` | No | `rerank-3-lite` | Voyage reranker (`rerank-3` for higher quality) |
+| `VOYAGE_BASE_URL` | No | `https://api.voyageai.com/v1` | Voyage API base URL |
+| `VOYAGE_TIMEOUT` | No | `30000` | Voyage request timeout in ms |
 
 ## Development
 

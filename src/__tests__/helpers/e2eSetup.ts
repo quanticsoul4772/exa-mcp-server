@@ -26,6 +26,8 @@ export class E2ETestSetup {
     process.env.LOG_LEVEL = 'ERROR';
     process.env.EXA_RETRIES = '0'; // Disable retries
     process.env.EXA_TIMEOUT = '2000'; // Short timeout for tests
+    process.env.VOYAGE_API_KEY = 'test-voyage-key';
+    process.env.VOYAGE_BASE_URL = this.testServer.getUrl();
     
     // Clear module cache to ensure new env vars are used
     this.clearModuleCache();

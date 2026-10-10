@@ -1,6 +1,6 @@
 # Tool Reference
 
-Generated from the tool schemas in `src/tools/` (version 0.6.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
+Generated from the tool schemas in `src/tools/` (version 0.7.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
 
 ## Contents
 
@@ -18,7 +18,7 @@ Generated from the tool schemas in `src/tools/` (version 0.6.0) by `scripts/gen-
 
 **Exa Web Search**
 
-Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.
+Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer; set rerank for Voyage relevance ordering. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.
 
 On by default: yes. Hints: readOnly: true, openWorld: true.
 
@@ -47,6 +47,8 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 | `includeExtras` | boolean | no |  | Include embedded links and image links from each result |
 | `subpages` | number | no |  | Also crawl up to this many subpages per result (e.g. a company's about/pricing pages) |
 | `subpageTarget` | array of string | no |  | Keywords to pick which subpages to crawl (e.g. ['about', 'pricing']) |
+| `rerank` | boolean | no |  | Rerank with Voyage: fetch extra candidates, score them against the query, return the best numResults with scores. Needs VOYAGE_API_KEY |
+| `rerankCandidates` | number | no |  | With rerank: candidates to fetch before reranking (default 3 x numResults, max 100) |
 | `outputSchema` | object (JSON Schema) | no |  | JSON Schema for a synthesized answer grounded in the results. Root type 'text' or 'object' (max 10 properties, 2 nesting levels). Adds ~2s. |
 | `systemPrompt` | string | no |  | Extra instructions for the synthesized output |
 | `objective` | string | no |  | The broader goal behind the search, to improve relevance |
@@ -56,7 +58,7 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 
 **Fetch Web Pages (Exa)**
 
-Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.
+Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Set relevantTo to get only the passages that matter for a question. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.
 
 On by default: yes. Hints: readOnly: true, openWorld: true.
 
@@ -69,6 +71,9 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 | `includeHtmlTags` | boolean | no | `false` |  |
 | `includeSections` | array of `header` \| `navigation` \| `banner` \| `body` \| `sidebar` \| `footer` \| `metadata` | no |  | Only keep these page sections (best effort), e.g. ['body'] |
 | `excludeSections` | array of `header` \| `navigation` \| `banner` \| `body` \| `sidebar` \| `footer` \| `metadata` | no |  | Drop these page sections (best effort), e.g. ['navigation', 'footer'] |
+| `relevantTo` | string | no |  | Return only the passages of each page most relevant to this query, scored by Voyage reranking, instead of the whole text. Needs VOYAGE_API_KEY |
+| `topChunks` | number | no | `5` | With relevantTo: passages kept per page (default 5) |
+| `chunkCharacters` | number | no | `1500` | With relevantTo: approximate passage size in characters (default 1500) |
 | `includeHighlights` | boolean | no | `false` |  |
 | `highlightsQuery` | string | no |  | Pick highlights relevant to this query (implies includeHighlights) |
 | `includeSummary` | boolean | no | `false` | Include an LLM-generated summary per URL |

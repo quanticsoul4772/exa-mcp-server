@@ -3,8 +3,8 @@
  * Kept short: clients may place it in the model's context.
  */
 export const SERVER_INSTRUCTIONS = `Exa web tools. Choosing a tool:
-- exa_search: find pages when you don't have URLs. Returns highlights by default; filters cover papers (category "publication"), companies, people, news and posts on X. Set outputSchema for a synthesized, cited answer.
-- web_fetch: read known URLs (1-100 per call).
+- exa_search: find pages when you don't have URLs. Returns highlights by default; filters cover papers (category "publication"), companies, people, news and posts on X. Set outputSchema for a synthesized, cited answer; set rerank to order results by Voyage relevance.
+- web_fetch: read known URLs (1-100 per call). Set relevantTo to get only the passages relevant to a question (needs VOYAGE_API_KEY): far fewer tokens than whole pages.
 - answer_question: one direct answer with citations.
 - code_search: code examples and API usage.
 - find_similar: pages like a given URL.

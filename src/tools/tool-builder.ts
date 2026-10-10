@@ -33,6 +33,12 @@ type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   progressSteps?: string[];
   /** Per-call request timeout in ms; undefined uses the client default (EXA_TIMEOUT) */
   timeoutMs?: (args: z.infer<T>) => number | undefined;
+  /**
+   * Transform the Exa response before formatting (e.g. Voyage reranking).
+   * Runs on fresh and cached responses; the cache always holds the raw
+   * Exa response. Throwing makes the call an error.
+   */
+  postProcess?: (data: TResponse, args: z.infer<T>, context: { signal?: AbortSignal }) => Promise<TResponse>;
 };
 
 /**
@@ -139,10 +145,13 @@ export function createTool<
           if (progress) {
             await progress.complete("Using cached response");
           }
+          const processed = config.postProcess
+            ? await config.postProcess(cachedResponse, validatedArgs, { signal: context.signal })
+            : cachedResponse;
           logExaUsage(config.name, "cache_hit");
           logger.complete();
           return {
-            content: [{ type: "text" as const, text: config.formatResponse(cachedResponse, config.name) }]
+            content: [{ type: "text" as const, text: config.formatResponse(processed, config.name) }]
           };
         }
 
@@ -182,8 +191,12 @@ export function createTool<
         // Only non-empty responses are cached
         cache.set(config.endpoint, request, response.data);
 
+        const processed = config.postProcess
+          ? await config.postProcess(response.data, validatedArgs, { signal: context.signal })
+          : response.data;
+
         await step(3, "Formatting results...");
-        const text = config.formatResponse(response.data, config.name);
+        const text = config.formatResponse(processed, config.name);
         if (progress) {
           await progress.complete("Request completed successfully");
         }
@@ -222,7 +235,8 @@ export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
   createRequest: (args: z.infer<T>) => ExaSearchRequest,
   formatResponse?: (data: ExaSearchResponse, toolName: string) => string,
   progressSteps?: string[],
-  timeoutMs?: (args: z.infer<T>) => number | undefined
+  timeoutMs?: (args: z.infer<T>) => number | undefined,
+  postProcess?: (data: ExaSearchResponse, args: z.infer<T>, context: { signal?: AbortSignal }) => Promise<ExaSearchResponse>
 ): ToolRegistry {
   return createTool({
     name,
@@ -234,6 +248,7 @@ export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
     formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
     getStartContext: (args) => getQueryFromArgs(args),
     progressSteps,
-    timeoutMs
+    timeoutMs,
+    postProcess
   });
 }

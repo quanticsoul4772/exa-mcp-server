@@ -1,8 +1,17 @@
 import { z } from "zod";
 import { createSearchTool, LONG_REQUEST_TIMEOUT_MS } from "./tool-builder.js";
+import { rerankSearchResults } from "./rerank.js";
 import { getConfig } from "../config/index.js";
 import { ToolRegistry } from "./config.js";
 import { DEFAULT_EXTRAS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
+
+/**
+ * Candidates to fetch before reranking: the caller's number, else three
+ * times the results wanted, capped at Exa's maximum of 100
+ */
+export function candidateCount(numResults: number, requested?: number): number {
+  return Math.min(100, Math.max(numResults, requested ?? numResults * 3));
+}
 
 // numResults: min 1 (0 results is meaningless), max 100 (Exa API maximum)
 const webSearchSchema = z.object({
@@ -47,6 +56,10 @@ const webSearchSchema = z.object({
     .describe("Also crawl up to this many subpages per result (e.g. a company's about/pricing pages)"),
   subpageTarget: z.array(z.string()).max(100).optional()
     .describe("Keywords to pick which subpages to crawl (e.g. ['about', 'pricing'])"),
+  rerank: z.boolean().optional()
+    .describe("Rerank with Voyage: fetch extra candidates, score them against the query, return the best numResults with scores. Needs VOYAGE_API_KEY"),
+  rerankCandidates: z.coerce.number().int().min(2).max(100).optional()
+    .describe("With rerank: candidates to fetch before reranking (default 3 x numResults, max 100)"),
   outputSchema: z.record(z.any()).optional()
     .describe("JSON Schema for a synthesized answer grounded in the results. Root type 'text' or 'object' (max 10 properties, 2 nesting levels). Adds ~2s."),
   systemPrompt: z.string().optional()
@@ -59,7 +72,7 @@ const webSearchSchema = z.object({
 
 export const webSearchTool: ToolRegistry = { ...createSearchTool(
   "exa_search",
-  "Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.",
+  "Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer; set rerank for Voyage relevance ordering. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.",
   webSearchSchema,
   true,
   (args) => {
@@ -72,7 +85,9 @@ export const webSearchTool: ToolRegistry = { ...createSearchTool(
     return {
       query: args.query,
       type: args.searchType || "auto",
-      numResults: args.numResults || config.tools.defaultNumResults,
+      numResults: args.rerank
+        ? candidateCount(args.numResults || config.tools.defaultNumResults, args.rerankCandidates)
+        : args.numResults || config.tools.defaultNumResults,
       ...(args.category && { category: args.category }),
       ...(args.includeDomains && { includeDomains: args.includeDomains }),
       ...(args.excludeDomains && { excludeDomains: args.excludeDomains }),
@@ -100,5 +115,8 @@ export const webSearchTool: ToolRegistry = { ...createSearchTool(
   undefined,
   undefined,
   // Deep search types can run for minutes
-  (args) => args.searchType?.startsWith('deep') ? LONG_REQUEST_TIMEOUT_MS : undefined
+  (args) => args.searchType?.startsWith('deep') ? LONG_REQUEST_TIMEOUT_MS : undefined,
+  async (data, args, { signal }) => args.rerank
+    ? rerankSearchResults(data, args.query, args.numResults || getConfig().tools.defaultNumResults, signal)
+    : data
 ), title: "Exa Web Search" };
