@@ -4,6 +4,7 @@ import { ExaCrawlRequest, ExaCrawlResponse } from "../types.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { DEFAULT_EXTRAS, LARGE_RESULT_CHARS, SECTIONS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 import { selectRelevantChunks } from "./rerank.js";
+import { applyInjectionScreen } from "./injectionScreen.js";
 
 /** Default per-URL text limit when the caller does not set one */
 export const DEFAULT_TEXT_PER_URL = 10000;
@@ -115,11 +116,15 @@ export const webFetchTool = createTool({
   },
   postProcess: async (rawData: ExaCrawlResponse, args, { signal }) => {
     const data = markTruncated(rawData, textLimitPerUrl(args.urls.length, args.textMaxCharacters, args.relevantTo !== undefined));
-    if (!args.relevantTo) return data;
+    if (!args.relevantTo) return applyInjectionScreen(data, signal);
     if (!args.includeText) {
       throw new Error("relevantTo needs page text; it cannot be used with includeText: false");
     }
-    return selectRelevantChunks(data, args.relevantTo, args.topChunks, args.chunkCharacters, signal);
+    // Screen what is actually returned: the selected passages
+    return applyInjectionScreen(
+      await selectRelevantChunks(data, args.relevantTo, args.topChunks, args.chunkCharacters, signal),
+      signal
+    );
   },
   formatResponse: (data: ExaCrawlResponse) => ResponseFormatter.formatContentsResponse(data),
   getStartContext: (args) => `Fetching ${args.urls.length} URL(s)`,

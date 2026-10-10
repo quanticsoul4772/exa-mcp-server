@@ -50,6 +50,8 @@ An MCP server (stdio) exposing Exa AI APIs as tools. TypeScript, ES modules (`.j
 
 6. **Voyage** (optional): `src/utils/voyage.ts` (rerank client with retries, `chunkText`) and `src/tools/rerank.ts` (`rerankSearchResults` for `exa_search` `rerank`, `selectRelevantChunks` for `web_fetch` `relevantTo`). Both run in `createTool`'s `postProcess` step, after the raw Exa response is cached. Missing key or Voyage failure is a tool error, never a silent fallback.
 
+   **Injection screen** (optional): `src/utils/jev.ts` (TypeSafe client, segmenting, bounded concurrency, audit log) and `src/tools/injectionScreen.ts` (`applyInjectionScreen`, run last in `web_fetch`'s `postProcess` on the text actually returned). `JEV_SCREEN=off|shadow|warn`; never withholds; a failed screen shows `not screened`. The question is fixed to the back-tested one in `claudedocs/jev-injection-backtest-2026-10-10.md`.
+
 7. **Utilities** (`src/utils/`): `formatter.ts` (output text, synthesized output, grounding, cost, `/contents` statuses), `exaClient.ts` (shared Axios client, retries, error handling), `cache.ts` (LRU + TTL), `rateLimiter.ts`, `pinoLogger.ts` (redacted structured logs), `usageLogger.ts` (CSV only when `EXA_USAGE_CSV` is set).
 
 8. **Version** (`src/version.ts`): `SERVER_VERSION` must equal `package.json` version; `src/__tests__/version.test.ts` enforces it.

@@ -1,6 +1,6 @@
 {
   "name": "exa-mcp-server",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "MCP server for Exa AI: web search with filters and synthesized output, page fetching, cited answers, code search, research agent runs, scheduled monitors, and Websets.",
   "type": "module",
   "repository": {

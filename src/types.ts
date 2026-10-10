@@ -182,6 +182,8 @@ export interface ExaSearchResult {
   totalChunks?: number;
   /** Set when the page text was cut at this many characters */
   truncatedAt?: number;
+  /** JEV_SCREEN=warn verdict for this page's returned text */
+  injectionScreen?: { score?: number; flagged?: boolean; error?: string };
   title?: string;
   url: string;
   publishedDate?: string;

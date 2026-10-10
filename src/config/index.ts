@@ -62,7 +62,21 @@ const configSchema = z.object({
     baseUrl: z.string().url().default('https://api.voyageai.com/v1'),
     rerankModel: z.string().min(1).default('rerank-3-lite'),
     timeout: z.coerce.number().int().min(1000).max(120000).default(30000)
-  }).default({})
+  }).default({}),
+
+  // TypeSafe Jev prompt-injection screen for web_fetch (off unless enabled)
+  jevScreen: z.object({
+    mode: z.enum(['off', 'shadow', 'warn']).default('off'),
+    apiKey: z.string().min(1).optional(),
+    baseUrl: z.string().url().default('https://api.typesafe.ai/v1'),
+    model: z.string().min(1).default('jev-latest'),
+    threshold: z.coerce.number().min(0).max(1).default(0.35),
+    auditLog: z.string().min(1).optional(),
+    timeout: z.coerce.number().int().min(1000).max(120000).default(30000)
+  }).default({}).refine(
+    s => s.mode === 'off' || s.apiKey !== undefined,
+    { message: 'TYPESAFE_API_KEY is required when JEV_SCREEN is shadow or warn', path: ['apiKey'] }
+  )
 }).strict();
 
 /**
@@ -101,6 +115,15 @@ function createRawConfig() {
       baseUrl: process.env.VOYAGE_BASE_URL,
       rerankModel: process.env.VOYAGE_RERANK_MODEL,
       timeout: process.env.VOYAGE_TIMEOUT
+    },
+    jevScreen: {
+      mode: process.env.JEV_SCREEN?.toLowerCase(),
+      apiKey: process.env.TYPESAFE_API_KEY || undefined,
+      baseUrl: process.env.TYPESAFE_BASE_URL,
+      model: process.env.JEV_MODEL,
+      threshold: process.env.JEV_SCREEN_THRESHOLD,
+      auditLog: process.env.JEV_AUDIT_LOG || undefined,
+      timeout: process.env.JEV_TIMEOUT
     }
   };
 }
@@ -223,6 +246,10 @@ export function getSanitizedConfig(): Record<string, unknown> {
     voyage: {
       ...config.voyage,
       apiKey: config.voyage.apiKey ? '[REDACTED]' : undefined
+    },
+    jevScreen: {
+      ...config.jevScreen,
+      apiKey: config.jevScreen.apiKey ? '[REDACTED]' : undefined
     }
   };
 }
