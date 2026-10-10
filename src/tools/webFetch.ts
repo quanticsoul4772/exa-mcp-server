@@ -4,12 +4,26 @@ import { ExaCrawlRequest, ExaCrawlResponse } from "../types.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { DEFAULT_EXTRAS, SECTIONS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 
+/** Default per-URL text limit when the caller does not set one */
+export const DEFAULT_TEXT_PER_URL = 10000;
+/** Default total text across all URLs when the caller does not set a per-URL limit */
+export const DEFAULT_TEXT_TOTAL = 100000;
+
+/**
+ * Per-URL text limit: the caller's value, else 10000 shrunk so the total
+ * across all URLs stays within 100000 characters
+ */
+export function textLimitPerUrl(urlCount: number, requested?: number): number {
+  if (requested !== undefined) return requested;
+  return Math.min(DEFAULT_TEXT_PER_URL, Math.floor(DEFAULT_TEXT_TOTAL / Math.max(1, urlCount)));
+}
+
 const webFetchSchema = z.object({
   urls: z.array(z.string().url()).min(1).max(100).describe("URLs to read (1-100)"),
   includeText: z.boolean().optional().default(true)
     .describe("Return page text (default true)"),
-  textMaxCharacters: z.coerce.number().int().min(1).max(1000000).optional().default(10000)
-    .describe("Max characters of text per URL (default 10000)"),
+  textMaxCharacters: z.coerce.number().int().min(1).max(1000000).optional()
+    .describe("Max characters of text per URL. Default: 10000 per URL, reduced so all URLs together stay within 100000 characters"),
   textVerbosity: z.enum(['compact', 'standard', 'full']).optional()
     .describe("Text detail level (Exa default 'compact')"),
   includeHtmlTags: z.boolean().optional().default(false),
@@ -47,7 +61,7 @@ export const webFetchTool = createTool({
     return {
       urls: args.urls,
       text: args.includeText ? {
-        maxCharacters: args.textMaxCharacters,
+        maxCharacters: textLimitPerUrl(args.urls.length, args.textMaxCharacters),
         includeHtmlTags: args.includeHtmlTags,
         ...(args.textVerbosity && { verbosity: args.textVerbosity }),
         ...(args.includeSections && { includeSections: args.includeSections }),

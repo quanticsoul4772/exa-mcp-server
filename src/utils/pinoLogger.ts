@@ -1,23 +1,12 @@
 import pino, { Logger, LoggerOptions } from 'pino';
-import { getConfig } from '../config/index.js';
-import { SERVER_VERSION } from '../version.js';
+import { getLoggingConfig } from '../config/index.js';
 
 
 /**
  * Creates the main Pino logger instance with appropriate configuration
  */
 function createPinoLogger(): Logger {
-  let config;
-  try {
-    config = getConfig();
-  } catch (error) {
-    // Fallback configuration for testing environments where config might not be available
-    config = {
-      logging: { level: 'DEBUG', redactLogs: false },
-      server: { name: 'exa-mcp-server', version: SERVER_VERSION },
-      environment: { nodeEnv: process.env.NODE_ENV || 'development' }
-    };
-  }
+  const config = getLoggingConfig();
   
   const loggerOptions: LoggerOptions = {
     level: config.logging.level.toLowerCase(),

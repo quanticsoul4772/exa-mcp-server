@@ -1,27 +1,30 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { ToolHandlerExtra, ToolResult } from "./config.js";
+import { ToolHandlerExtra } from "./config.js";
+import { logWarn } from "../utils/pinoLogger.js";
+
+/** Progress token as defined by MCP (string or integer) */
+export type ProgressToken = string | number;
+
+/** The notification sender the SDK passes to every request handler */
+export type NotificationSender = ToolHandlerExtra["sendNotification"];
 
 /**
- * Sends a progress notification to the MCP client
- * @param progressToken - Token for progress tracking
- * @param server - MCP server instance
- * @param progress - Current progress value
- * @param total - Total expected value
- * @param message - Optional progress message
+ * Sends a progress notification to the MCP client.
+ * Does nothing when the client did not ask for progress (no token).
+ * A failed notification is logged to stderr and does not fail the tool.
  */
 export async function sendProgressNotification(
-  progressToken: string | undefined,
-  server: Server | undefined,
+  progressToken: ProgressToken | undefined,
+  sendNotification: NotificationSender | undefined,
   progress: number,
   total: number,
   message?: string
 ): Promise<void> {
-  if (!progressToken || !server) {
+  if (progressToken === undefined || !sendNotification) {
     return;
   }
 
   try {
-    await server.notification({
+    await sendNotification({
       method: "notifications/progress",
       params: {
         progressToken,
@@ -31,9 +34,7 @@ export async function sendProgressNotification(
       }
     });
   } catch (error) {
-    // Silently ignore notification errors to prevent tool failure
-    // eslint-disable-next-line no-console
-    console.error("Failed to send progress notification:", error);
+    logWarn(`Failed to send progress notification: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -45,8 +46,8 @@ export class ProgressTracker {
 
   constructor(
     private readonly total: number,
-    private readonly progressToken: string | undefined,
-    private readonly server: Server | undefined
+    private readonly progressToken: ProgressToken | undefined,
+    private readonly sendNotification: NotificationSender | undefined
   ) {}
 
   /**
@@ -67,7 +68,7 @@ export class ProgressTracker {
     this.current = value;
     await sendProgressNotification(
       this.progressToken,
-      this.server,
+      this.sendNotification,
       this.current,
       this.total,
       message
@@ -84,90 +85,27 @@ export class ProgressTracker {
 }
 
 /**
- * Extracts metadata and server from extra parameter
- * @param extra - Extra context from tool handler
- * @returns Extracted metadata and server
+ * What a tool handler needs from the SDK's request context
  */
-export function extractToolContext(extra?: ToolHandlerExtra): {
-  progressToken?: string;
+export interface ToolContext {
+  progressToken?: ProgressToken;
   requestId?: string;
-  server?: Server;
-  metadata?: Record<string, unknown>;
-} {
+  signal?: AbortSignal;
+  sendNotification?: NotificationSender;
+}
+
+/**
+ * Extracts the progress token, request id, abort signal and notification
+ * sender from the extra argument the SDK passes to tool handlers
+ */
+export function extractToolContext(extra?: ToolHandlerExtra): ToolContext {
   if (!extra) {
     return {};
   }
-
-  const { _meta, server, ...rest } = extra;
-
   return {
-    progressToken: _meta?.progressToken,
-    requestId: _meta?.requestId,
-    server: server as Server | undefined,
-    metadata: { ..._meta, ...rest }
-  };
-}
-
-/**
- * Wraps a tool handler with enhanced capabilities
- * @param handler - Original tool handler
- * @param toolName - Name of the tool for logging
- * @returns Enhanced tool handler
- */
-export function enhanceToolHandler(
-  handler: (args: Record<string, unknown>, extra?: ToolHandlerExtra) => Promise<ToolResult>,
-  toolName: string
-): (args: Record<string, unknown>, extra?: ToolHandlerExtra) => Promise<ToolResult> {
-  return async (args, extra) => {
-    const context = extractToolContext(extra);
-
-    // Log request with metadata
-    if (context.requestId) {
-      // eslint-disable-next-line no-console
-      console.log(`[${toolName}] Processing request ${context.requestId}`);
-    }
-
-    try {
-      // Pass through to original handler with context
-      const result = await handler(args, {
-        ...extra,
-        _meta: {
-          ...extra?._meta,
-          toolName
-        }
-      });
-
-      return result;
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(`[${toolName}] Error:`, error);
-      throw error;
-    }
-  };
-}
-
-/**
- * Creates a progress-aware tool handler wrapper
- * @param steps - Array of step descriptions
- * @param handler - Tool handler function that receives progress tracker
- * @returns Enhanced tool handler
- */
-export function createProgressHandler<T extends Record<string, unknown>>(
-  steps: string[],
-  handler: (
-    args: T,
-    progress: ProgressTracker,
-    context: ReturnType<typeof extractToolContext>
-  ) => Promise<ToolResult>
-): (args: Record<string, unknown>, extra?: ToolHandlerExtra) => Promise<ToolResult> {
-  return async (args, extra) => {
-    const context = extractToolContext(extra);
-    const progress = new ProgressTracker(
-      steps.length,
-      context.progressToken,
-      context.server
-    );
-
-    return handler(args as T, progress, context);
+    progressToken: extra._meta?.progressToken,
+    requestId: extra.requestId !== undefined ? String(extra.requestId) : undefined,
+    signal: extra.signal,
+    sendNotification: extra.sendNotification
   };
 }

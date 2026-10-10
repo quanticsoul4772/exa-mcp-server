@@ -35,6 +35,11 @@ jest.mock('../config/index.js', () => ({
       defaultMaxCharacters: 3000
     }
   })),
+  getLoggingConfig: jest.fn(() => ({
+    server: { name: 'test-server', version: '1.0.0' },
+    logging: { level: 'ERROR', redactLogs: true },
+    environment: { nodeEnv: 'test' }
+  })),
   clearConfigCache: jest.fn(),
   validateConfig: jest.fn((config: any) => config)
 }));
@@ -57,7 +62,18 @@ jest.mock('../utils/pinoLogger.js', () => {
     createPinoLogger: jest.fn(() => mockLogger),
     formatError: jest.fn((err: any) => ({ error: err?.message || 'Error' })),
     formatRequest: jest.fn((req: any) => ({ request: req })),
-    formatResponse: jest.fn((res: any) => ({ response: res }))
+    formatResponse: jest.fn((res: any) => ({ response: res })),
+    logInfo: jest.fn(),
+    logWarn: jest.fn(),
+    logError: jest.fn(),
+    logDebug: jest.fn(),
+    generateRequestId: jest.fn(() => 'test-request-id'),
+    createRequestLogger: jest.fn(() => ({
+      start: jest.fn(),
+      log: jest.fn(),
+      complete: jest.fn(),
+      error: jest.fn()
+    }))
   };
 });
 

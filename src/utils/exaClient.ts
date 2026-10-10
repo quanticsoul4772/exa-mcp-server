@@ -31,25 +31,59 @@ export function createExaClient(): AxiosInstance {
     timeout: config.exa.timeout
   });
 
-  // Configure retry with exponential backoff
   axiosRetry(client, {
     retries: config.exa.retries,
-    retryDelay: (retryCount) => {
-      const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-      const jitter = Math.random() * 500; // Add up to 500ms jitter
-      return delay + jitter;
-    },
-    retryCondition: (error) => {
-      // Retry on network errors or 5xx status codes
-      return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-             (error.response?.status !== undefined && error.response.status >= 500);
-    },
-    onRetry: (retryCount, error, _requestConfig) => {
-      logWarn(`Retrying request (attempt ${retryCount}/3): ${error.message}`);
+    retryDelay,
+    retryCondition: isRetryable,
+    onRetry: (retryCount, error, requestConfig) => {
+      logWarn(`Retrying ${requestConfig.method?.toUpperCase()} ${requestConfig.url} (attempt ${retryCount}/${config.exa.retries}): ${error.message}`);
     }
   });
 
   return client;
+}
+
+/**
+ * POST endpoints that only read data, so repeating a request cannot create
+ * anything. POSTs to other endpoints (agent runs, monitors, websets) create
+ * billable resources and are never retried.
+ */
+const READ_ONLY_POST_PATHS = new Set(['/search', '/contents', '/answer', '/context', '/findSimilar']);
+
+/**
+ * True when repeating the request cannot create a duplicate resource
+ */
+export function isSafeToRetry(requestConfig?: { method?: string; url?: string }): boolean {
+  const method = (requestConfig?.method ?? 'get').toLowerCase();
+  if (method === 'get') return true;
+  return method === 'post' && READ_ONLY_POST_PATHS.has(requestConfig?.url ?? '');
+}
+
+/**
+ * Retry network errors, 5xx and 429 for requests that are safe to repeat.
+ * Client cancellations are never retried.
+ */
+export function isRetryable(error: AxiosError): boolean {
+  if (axios.isCancel(error) || !isSafeToRetry(error.config)) return false;
+  const status = error.response?.status;
+  if (status === undefined) return axiosRetry.isNetworkError(error);
+  return status === 429 || status >= 500;
+}
+
+/**
+ * Honor Retry-After (seconds or HTTP date) on 429/503; otherwise exponential
+ * backoff (1s, 2s, 4s...) with up to 500 ms jitter
+ */
+export function retryDelay(retryCount: number, error: AxiosError): number {
+  const header = error.response?.headers?.['retry-after'];
+  if (header !== undefined && header !== null) {
+    const value = String(header);
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    const date = Date.parse(value);
+    if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  }
+  return Math.pow(2, retryCount - 1) * 1000 + Math.random() * 500;
 }
 
 /**

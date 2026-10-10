@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSearchTool } from "./tool-builder.js";
+import { createSearchTool, LONG_REQUEST_TIMEOUT_MS } from "./tool-builder.js";
 import { getConfig } from "../config/index.js";
 import { DEFAULT_EXTRAS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 
@@ -33,7 +33,11 @@ const webSearchSchema = z.object({
   summaryQuery: z.string().optional()
     .describe("Guide each result's summary with this question (implies includeSummary)"),
   includeHighlights: z.boolean().optional()
-    .describe("Include key excerpts from each result"),
+    .describe("Include key excerpts from each result (default: on unless page text is requested)"),
+  includePageText: z.boolean().optional()
+    .describe("Include each result's page text, up to DEFAULT_MAX_CHARACTERS (default 3000) characters. Off by default: results carry highlights instead"),
+  textMaxCharacters: z.coerce.number().int().min(1).max(1000000).optional()
+    .describe("Include page text up to this many characters per result (implies includePageText)"),
   highlightsQuery: z.string().optional()
     .describe("Pick highlights relevant to this query (implies includeHighlights)"),
   includeExtras: z.boolean().optional()
@@ -60,7 +64,10 @@ export const webSearchTool = createSearchTool(
   (args) => {
     const config = getConfig();
     const summary = summaryOption(args.includeSummary, args.summaryQuery);
-    const highlights = highlightsOption(args.includeHighlights, args.highlightsQuery);
+    const wantsText = args.includePageText || args.textMaxCharacters !== undefined;
+    // Default to highlights (query-relevant excerpts) rather than page text:
+    // full text per result is large and rarely needed for discovery
+    const highlights = highlightsOption(args.includeHighlights ?? !wantsText, args.highlightsQuery);
     return {
       query: args.query,
       type: args.searchType || "auto",
@@ -79,9 +86,7 @@ export const webSearchTool = createSearchTool(
       ...(args.objective && { objective: args.objective }),
       ...(args.additionalQueries && { additionalQueries: args.additionalQueries }),
       contents: {
-        text: {
-          maxCharacters: config.tools.defaultMaxCharacters
-        },
+        ...(wantsText && { text: { maxCharacters: args.textMaxCharacters ?? config.tools.defaultMaxCharacters } }),
         ...freshness(args),
         ...(summary && { summary }),
         ...(highlights && { highlights }),
@@ -90,5 +95,9 @@ export const webSearchTool = createSearchTool(
         ...(args.subpageTarget && { subpageTarget: args.subpageTarget })
       }
     };
-  }
+  },
+  undefined,
+  undefined,
+  // Deep search types can run for minutes
+  (args) => args.searchType?.startsWith('deep') ? LONG_REQUEST_TIMEOUT_MS : undefined
 );

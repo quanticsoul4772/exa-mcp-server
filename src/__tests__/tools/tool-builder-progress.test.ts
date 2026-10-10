@@ -101,7 +101,7 @@ describe('Tool Builder Progress Integration', () => {
           progressToken: 'progress-123',
           requestId: 'client-req-456'
         },
-        server: mockServer
+        sendNotification: mockServer.notification
       };
 
       const result = await tool.handler({ query: 'test query' }, extra);
@@ -200,7 +200,7 @@ describe('Tool Builder Progress Integration', () => {
         _meta: {
           progressToken: 'search-progress-123'
         },
-        server: mockServer
+        sendNotification: mockServer.notification
       };
 
       await tool.handler({ query: 'test search' }, extra);
@@ -279,7 +279,7 @@ describe('Tool Builder Progress Integration', () => {
         _meta: {
           progressToken: 'cache-progress-123'
         },
-        server: mockServer
+        sendNotification: mockServer.notification
       };
 
       await tool.handler({ query: 'cached query' }, extra);

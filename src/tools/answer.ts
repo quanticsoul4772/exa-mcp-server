@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTool } from "./tool-builder.js";
+import { createTool, LONG_REQUEST_TIMEOUT_MS } from "./tool-builder.js";
 import { ExaCostDollars } from "../types.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 
@@ -65,7 +65,7 @@ export const answerTool = createTool({
         const date = citation.publishedDate ? ` (${ResponseFormatter.formatDate(citation.publishedDate)})` : '';
         lines.push(`${idx + 1}. [${citation.title || citation.url}](${citation.url})${date}`);
         if (citation.text) {
-          lines.push(`   ${citation.text.replace(/\s+/g, ' ').trim().substring(0, 300)}...`);
+          lines.push(`   ${citation.text.replace(/\s+/g, ' ').trim()}`);
         }
       });
     }
@@ -74,6 +74,8 @@ export const answerTool = createTool({
     return lines.join('\n');
   },
   getStartContext: (args) => `Answering: "${args.query}"`,
+  // Research-grade answer models can run for minutes
+  timeoutMs: (args) => args.model === 'exa-research' || args.model === 'exa-pro' ? LONG_REQUEST_TIMEOUT_MS : undefined,
   progressSteps: [
     "Analyzing question...",
     "Searching for relevant sources...",

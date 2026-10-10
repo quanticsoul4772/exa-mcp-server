@@ -319,6 +319,83 @@ describe('Tool E2E Tests', () => {
     });
   });
 
+  describe('Tier 1 behavior', () => {
+    it('search requests highlights, not page text, by default', async () => {
+      e2e.mockSuccessfulSearch([{ id: '1', title: 'R', url: 'https://r.com', highlights: ['relevant bit'] }]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'q' }, {});
+      expect(result.content[0].text).toContain('relevant bit');
+      const contents = e2e.getRequestHistory()[0].body.contents;
+      expect(contents.highlights).toEqual({ maxCharacters: 500 });
+      expect(contents).not.toHaveProperty('text');
+    });
+
+    it('search includes page text only when asked, and shows all of it', async () => {
+      const longText = 'x'.repeat(2500);
+      e2e.mockSuccessfulSearch([{ id: '1', title: 'R', url: 'https://r.com', text: longText }]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'q', textMaxCharacters: 2500 }, {});
+      expect(result.content[0].text).toContain(longText);
+      const contents = e2e.getRequestHistory()[0].body.contents;
+      expect(contents.text).toEqual({ maxCharacters: 2500 });
+      expect(contents).not.toHaveProperty('highlights');
+    });
+
+    it('web_fetch keeps 20 URLs within the 100k total text budget by default', async () => {
+      e2e.mockSuccessfulContents([{ id: 'https://a.com', url: 'https://a.com', text: 't' }]);
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const urls = Array.from({ length: 20 }, (_, i) => `https://a.com/${i}`);
+      await webFetchTool.handler({ urls }, {});
+      expect(e2e.getRequestHistory()[0].body.text.maxCharacters).toBe(5000);
+    });
+
+    it('web_fetch honors an explicit per-URL limit', async () => {
+      e2e.mockSuccessfulContents([{ id: 'https://a.com', url: 'https://a.com', text: 't' }]);
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const urls = Array.from({ length: 20 }, (_, i) => `https://a.com/${i}`);
+      await webFetchTool.handler({ urls, textMaxCharacters: 20000 }, {});
+      expect(e2e.getRequestHistory()[0].body.text.maxCharacters).toBe(20000);
+    });
+
+    it('escapes ids placed in URL paths', async () => {
+      e2e.getServer().mock('GET', '/monitors/a/b', { status: 200, data: {} });
+      e2e.getServer().mock('GET', '/monitors/a%2Fb', { status: 200, data: {
+        id: 'a/b', name: null, status: 'active', search: { query: 'q' }, trigger: null, webhook: { url: 'https://h' }, nextRunAt: null, createdAt: 'now'
+      } });
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const result = await monitorsTool.handler({ action: 'get', monitorId: 'a/b' }, {});
+      expect(result.isError).toBeUndefined();
+      expect(e2e.getRequestHistory()[0].path).toBe('/monitors/a%2Fb');
+    });
+
+    it('cancels a run it created when the client cancels', async () => {
+      e2e.getServer().mock('POST', '/agent/runs', { status: 200, data: { id: 'agent_run_c', status: 'queued', stopReason: null } });
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_c', { status: 200, data: { id: 'agent_run_c', status: 'running', stopReason: null } });
+      e2e.getServer().mock('POST', '/agent/runs/agent_run_c/cancel', { status: 200, data: { id: 'agent_run_c', status: 'cancelled', stopReason: 'cancelled' } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const controller = new AbortController();
+      const call = agentRunTool.handler({ query: 'q', waitSeconds: 60 }, { signal: controller.signal });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      controller.abort();
+      const result = await call;
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('agent_run_c was cancelled');
+      expect(e2e.getRequestHistory().some(r => r.method === 'POST' && r.path === '/agent/runs/agent_run_c/cancel')).toBe(true);
+    });
+
+    it('does not cancel a resumed run when the client cancels', async () => {
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_r', { status: 200, data: { id: 'agent_run_r', status: 'running', stopReason: null } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const controller = new AbortController();
+      const call = agentRunTool.handler({ runId: 'agent_run_r', waitSeconds: 60 }, { signal: controller.signal });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      controller.abort();
+      const result = await call;
+      expect(result.content[0].text).toContain('agent_run_r continues on Exa');
+      expect(e2e.getRequestHistory().some(r => r.path.endsWith('/cancel'))).toBe(false);
+    });
+  });
+
   describe('Agent Run Tool', () => {
     it('creates a run, polls until completed, and formats output', async () => {
       let polls = 0;
@@ -339,14 +416,14 @@ describe('Tool E2E Tests', () => {
       const { agentRunTool, agentRunTiming } = await import('../../tools/agentRun.js');
       agentRunTiming.pollIntervalMs = 1;
       try {
-        const result = await agentRunTool.handler({ query: 'count things', effort: 'low', maxCostDollars: 2 }, {});
+        const result = await agentRunTool.handler({ query: 'count things', effort: 'auto', maxCostDollars: 2 }, {});
         expect(result.isError).toBeUndefined();
         const text = result.content[0].text;
         expect(text).toContain('Final report');
         expect(text).toContain('"n": 3');
         expect(text).toContain('Estimated cost: $1.2500');
         const create = e2e.getRequestHistory().find(r => r.method === 'POST')!;
-        expect(create.body).toEqual({ query: 'count things', effort: 'low', budget: { maxCostDollars: 2 } });
+        expect(create.body).toEqual({ query: 'count things', effort: 'auto', budget: { maxCostDollars: 2 } });
       } finally {
         agentRunTiming.pollIntervalMs = 5000;
       }
@@ -367,6 +444,14 @@ describe('Tool E2E Tests', () => {
       const result = await agentRunTool.handler({ runId: 'agent_run_3' }, {});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('budget_reached');
+    });
+
+    it('rejects maxCostDollars for unmetered efforts before calling Exa', async () => {
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const result = await agentRunTool.handler({ query: 'q', effort: 'low', maxCostDollars: 2 }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("only to effort 'auto' or 'ultra'");
+      expect(e2e.getRequestHistory()).toHaveLength(0);
     });
 
     it('requires query or runId', async () => {

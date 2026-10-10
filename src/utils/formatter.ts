@@ -66,13 +66,12 @@ export class ResponseFormatter {
     }
 
     if (result.text) {
-      const preview = this.truncateText(result.text, 300);
-      lines.push(`   Preview: ${preview}`);
+      lines.push(`   Text: ${this.collapseWhitespace(result.text)}`);
     }
 
     if (result.highlights?.length) {
       lines.push(`   Highlights:`);
-      result.highlights.forEach(h => lines.push(`   - ${this.truncateText(h, 200)}`));
+      result.highlights.forEach(h => lines.push(`   - ${this.collapseWhitespace(h)}`));
     }
 
     lines.push(...this.formatExtras(result, '   '));
@@ -81,7 +80,8 @@ export class ResponseFormatter {
       lines.push(`   Subpages:`);
       result.subpages.forEach(sp => {
         lines.push(`   - ${sp.title || 'Untitled'}: ${sp.url}`);
-        if (sp.summary) lines.push(`     ${this.truncateText(sp.summary, 200)}`);
+        if (sp.summary) lines.push(`     Summary: ${this.cleanSummary(sp.summary)}`);
+        if (sp.text) lines.push(`     Text: ${this.collapseWhitespace(sp.text)}`);
       });
     }
 
@@ -243,14 +243,10 @@ export class ResponseFormatter {
   }
 
   /**
-   * Truncate text with ellipsis
+   * Collapse runs of whitespace so multi-line page text fits one result entry
    */
-  private static truncateText(text: string, maxLength: number): string {
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    if (cleaned.length <= maxLength) {
-      return cleaned;
-    }
-    return cleaned.substring(0, maxLength) + '...';
+  private static collapseWhitespace(text: string): string {
+    return text.replace(/\s+/g, ' ').trim();
   }
 
   /**

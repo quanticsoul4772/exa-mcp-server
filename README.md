@@ -54,8 +54,8 @@ Claude Desktop (`claude_desktop_config.json`):
 
 | Tool | What it does | Exa endpoint | On by default |
 |------|--------------|--------------|---------------|
-| `exa_search` | Web search with filters, subpages and optional synthesized output | `POST /search` | Yes |
-| `web_fetch` | Read 1-100 known URLs; reports failed URLs | `POST /contents` | Yes |
+| `exa_search` | Web search with filters, subpages and optional synthesized output. Returns highlights by default; page text on request | `POST /search` | Yes |
+| `web_fetch` | Read 1-100 known URLs; reports failed URLs. Default 10,000 characters per URL, at most 100,000 in total | `POST /contents` | Yes |
 | `answer_question` | Direct answer with citations; optional structured answer | `POST /answer` | Yes |
 | `find_similar` | Pages similar to a URL (Exa marks this endpoint deprecated) | `POST /findSimilar` | Yes |
 | `code_search` | Code examples and API usage | `POST /context` | Yes |
@@ -116,7 +116,7 @@ exa-mcp-server                                        # tools on by default
 | `EXA_TIMEOUT` | No | `25000` | Request timeout in ms (1000-60000) |
 | `EXA_RETRIES` | No | `3` | Retries for network errors and 5xx responses |
 | `DEFAULT_NUM_RESULTS` | No | `3` | Results per search when `numResults` is omitted |
-| `DEFAULT_MAX_CHARACTERS` | No | `3000` | Text characters per search result |
+| `DEFAULT_MAX_CHARACTERS` | No | `3000` | Text characters per search result when `includePageText` is set |
 | `CACHE_ENABLED` | No | `true` | Cache identical requests (skipped when `maxAgeHours` is 0) |
 | `CACHE_MAX_SIZE` | No | `100` | Max cached responses |
 | `CACHE_TTL_MINUTES` | No | `5` | Cache lifetime |

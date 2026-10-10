@@ -2,8 +2,9 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import { SERVER_VERSION } from '../version.js';
 
-// Load environment variables once at module initialization
-dotenv.config();
+// Load .env once at module initialization. quiet: dotenv otherwise prints a
+// banner to stdout, which on stdio corrupts the MCP protocol stream.
+dotenv.config({ quiet: true });
 
 /**
  * Environment configuration schema with strict validation
@@ -87,6 +88,20 @@ function createRawConfig() {
       maxSize: process.env.CACHE_MAX_SIZE,
       ttlMinutes: process.env.CACHE_TTL_MINUTES
     }
+  };
+}
+
+/**
+ * Logging, server and environment settings only, validated with the same
+ * schema as getConfig() but without requiring EXA_API_KEY. The logger uses
+ * this so that importing it never exits the process (e.g. for --list-tools).
+ */
+export function getLoggingConfig(): Pick<Config, 'logging' | 'server' | 'environment'> {
+  const raw = createRawConfig();
+  return {
+    logging: configSchema.shape.logging.parse(raw.logging),
+    server: configSchema.shape.server.parse(raw.server),
+    environment: configSchema.shape.environment.parse(raw.environment)
   };
 }
 

@@ -57,11 +57,7 @@ jest.mock('../../tools/progress-tracker.js', () => ({
     increment: jest.fn<() => Promise<void>>().mockResolvedValue(),
     complete: jest.fn<() => Promise<void>>().mockResolvedValue()
   })),
-  extractToolContext: jest.fn(() => ({
-    requestId: null,
-    progressToken: null,
-    server: null
-  }))
+  extractToolContext: (jest.requireActual('../../tools/progress-tracker.js') as typeof import('../../tools/progress-tracker.js')).extractToolContext
 }));
 
 import { createTool, createSearchTool, requestsFreshContent } from '../../tools/tool-builder.js';
@@ -251,7 +247,65 @@ describe('Tool Builder', () => {
 
       await tool.handler({ query: 'test query' }, {});
 
-      expect(mockPost).toHaveBeenCalledWith('/search', expect.objectContaining({ query: 'test query' }));
+      expect(mockPost).toHaveBeenCalledWith('/search', expect.objectContaining({ query: 'test query' }), expect.anything());
+    });
+  });
+
+  describe('cache, timeout and cancellation', () => {
+    function mockCache() {
+      const cache = {
+        get: jest.fn().mockReturnValue(null),
+        set: jest.fn(),
+        has: jest.fn(), delete: jest.fn(), clear: jest.fn(), getStats: jest.fn(),
+        prune: jest.fn(), setEnabled: jest.fn(), isEnabled: jest.fn()
+      };
+      (getGlobalCache as jest.MockedFunction<typeof getGlobalCache>).mockReturnValue(cache as any);
+      return cache;
+    }
+    function tool(timeoutMs?: (args: any) => number | undefined) {
+      return createTool({
+        name: 'test_tool',
+        description: 'Test tool',
+        schema: z.object({ query: z.string() }),
+        enabled: true,
+        endpoint: '/search',
+        createRequest: (args) => args,
+        formatResponse: (data: any) => `${data.results.length} results`,
+        getStartContext: (args) => args.query,
+        timeoutMs
+      });
+    }
+
+    it('does not cache an empty result list', async () => {
+      const cache = mockCache();
+      const mockPost = jest.fn<(...a: any[]) => Promise<any>>().mockResolvedValue({ data: { results: [] } });
+      (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({ post: mockPost } as any);
+
+      const result = await tool().handler({ query: 'nothing' }, {});
+
+      expect(result.content[0].text).toContain('No results found');
+      expect(cache.set).not.toHaveBeenCalled();
+    });
+
+    it('caches a non-empty result list once', async () => {
+      const cache = mockCache();
+      const mockPost = jest.fn<(...a: any[]) => Promise<any>>().mockResolvedValue({ data: { results: [{ url: 'https://a.com' }] } });
+      (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({ post: mockPost } as any);
+
+      await tool().handler({ query: 'something' }, {});
+
+      expect(cache.set).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes the abort signal and per-call timeout to the request', async () => {
+      mockCache();
+      const mockPost = jest.fn<(...a: any[]) => Promise<any>>().mockResolvedValue({ data: { results: [{ url: 'https://a.com' }] } });
+      (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({ post: mockPost } as any);
+      const controller = new AbortController();
+
+      await tool(() => 300000).handler({ query: 'deep' }, { signal: controller.signal });
+
+      expect(mockPost).toHaveBeenCalledWith('/search', { query: 'deep' }, { signal: controller.signal, timeout: 300000 });
     });
   });
 

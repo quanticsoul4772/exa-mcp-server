@@ -1,6 +1,6 @@
 # Tool Reference
 
-Generated from the tool schemas in `src/tools/` (version 0.5.0). Every tool response ends with the estimated cost when Exa reports one.
+Generated from the tool schemas in `src/tools/` (version 0.5.1) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
 
 ## Contents
 
@@ -38,7 +38,9 @@ On by default: yes
 | `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
 | `includeSummary` | boolean | no |  | Include an LLM-generated summary for each result |
 | `summaryQuery` | string | no |  | Guide each result's summary with this question (implies includeSummary) |
-| `includeHighlights` | boolean | no |  | Include key excerpts from each result |
+| `includeHighlights` | boolean | no |  | Include key excerpts from each result (default: on unless page text is requested) |
+| `includePageText` | boolean | no |  | Include each result's page text, up to DEFAULT_MAX_CHARACTERS (default 3000) characters. Off by default: results carry highlights instead |
+| `textMaxCharacters` | number | no |  | Include page text up to this many characters per result (implies includePageText) |
 | `highlightsQuery` | string | no |  | Pick highlights relevant to this query (implies includeHighlights) |
 | `includeExtras` | boolean | no |  | Include embedded links and image links from each result |
 | `subpages` | number | no |  | Also crawl up to this many subpages per result (e.g. a company's about/pricing pages) |
@@ -58,7 +60,7 @@ On by default: yes
 |---|---|---|---|---|
 | `urls` | array of string | yes |  | URLs to read (1-100) |
 | `includeText` | boolean | no | `true` | Return page text (default true) |
-| `textMaxCharacters` | number | no | `10000` | Max characters of text per URL (default 10000) |
+| `textMaxCharacters` | number | no |  | Max characters of text per URL. Default: 10000 per URL, reduced so all URLs together stay within 100000 characters |
 | `textVerbosity` | `compact` \| `standard` \| `full` | no |  | Text detail level (Exa default 'compact') |
 | `includeHtmlTags` | boolean | no | `false` |  |
 | `includeSections` | array of `header` \| `navigation` \| `banner` \| `body` \| `sidebar` \| `footer` \| `metadata` | no |  | Only keep these page sections (best effort), e.g. ['body'] |
@@ -127,7 +129,7 @@ On by default: yes
 
 ## agent_run
 
-Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting.
+Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.
 
 On by default: no
 
