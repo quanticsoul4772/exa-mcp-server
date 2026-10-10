@@ -4,7 +4,10 @@ import { SERVER_VERSION } from '../version.js';
 
 // Load .env once at module initialization. quiet: dotenv otherwise prints a
 // banner to stdout, which on stdio corrupts the MCP protocol stream.
-dotenv.config({ quiet: true });
+// DOTENV_CONFIG_PATH (dotenv's own convention) names a file outside the
+// working directory, e.g. keys the MCP client's environment does not carry.
+// Variables already in the environment take precedence over the file.
+dotenv.config({ quiet: true, ...(process.env.DOTENV_CONFIG_PATH && { path: process.env.DOTENV_CONFIG_PATH }) });
 
 /**
  * Environment configuration schema with strict validation

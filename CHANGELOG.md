@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.9.1] - 2026-10-10
+
+### Added
+- `DOTENV_CONFIG_PATH` names the `.env` file to load. An MCP client started before a key existed (on Windows, a user variable set after the client process started) passes the literal `${VAR}` placeholder instead of the key; pointing the server at a private `.env` file works without restarting the client. Variables already in the environment take precedence over the file, so remove a broken `${VAR}` entry from the client config.
+
 ## [0.9.0] - 2026-10-10
 
 ### Added
