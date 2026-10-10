@@ -396,6 +396,88 @@ describe('Tool E2E Tests', () => {
     });
   });
 
+  describe('Voyage reranking', () => {
+    const rerankReply = (data: Array<{ index: number; relevance_score: number }>) => ({
+      status: 200,
+      data: { object: 'list', data, model: 'rerank-3-lite', usage: { total_tokens: 1234 } }
+    });
+
+    it('exa_search rerank over-fetches, reorders and shows scores', async () => {
+      e2e.mockSuccessfulSearch(Array.from({ length: 6 }, (_, i) => ({
+        id: `${i}`, title: `Result ${i}`, url: `https://r.com/${i}`, highlights: [`about ${i}`]
+      })));
+      e2e.getServer().mock('POST', '/rerank', rerankReply([
+        { index: 4, relevance_score: 0.91 },
+        { index: 1, relevance_score: 0.55 }
+      ]));
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'which one', numResults: 2, rerank: true }, {});
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      expect(text.indexOf('Result 4')).toBeLessThan(text.indexOf('Result 1'));
+      expect(text).not.toContain('Result 0');
+      expect(text).toContain('Relevance: 0.910');
+      expect(text).toContain('Voyage rerank-3-lite: 1234 tokens');
+
+      const history = e2e.getRequestHistory();
+      expect(history.find(r => r.path === '/search')!.body.numResults).toBe(6);
+      const rerankBody = history.find(r => r.path === '/rerank')!.body;
+      expect(rerankBody).toMatchObject({ query: 'which one', model: 'rerank-3-lite', top_k: 2 });
+      expect(rerankBody.documents).toHaveLength(6);
+      expect(rerankBody.documents[4]).toContain('about 4');
+    });
+
+    it('web_fetch relevantTo returns the best passages in page order instead of the full text', async () => {
+      const paragraphs = Array.from({ length: 6 }, (_, i) => `Paragraph ${i} ` + 'x'.repeat(250));
+      e2e.mockSuccessfulContents([{ id: 'https://p.com', url: 'https://p.com', title: 'Page', text: paragraphs.join('\n\n') }]);
+      e2e.getServer().mock('POST', '/rerank', (req: any) => rerankReply(
+        req.body.documents.map((_d: string, index: number) => ({ index, relevance_score: index === 5 ? 0.9 : index === 2 ? 0.8 : 0.1 }))
+      ));
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({
+        urls: ['https://p.com'], relevantTo: 'the important part', topChunks: 2, chunkCharacters: 300
+      }, {});
+
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      expect(text).toContain('Relevant passages** (2 of 6, page order)');
+      expect(text.indexOf('Paragraph 2')).toBeLessThan(text.indexOf('Paragraph 5'));
+      expect(text).not.toContain('Paragraph 0');
+      expect(text).toContain('[relevance 0.900]');
+      const history = e2e.getRequestHistory();
+      expect(history.find(r => r.path === '/contents')!.body.text.maxCharacters).toBe(50000);
+      expect(history.find(r => r.path === '/rerank')!.body.documents).toHaveLength(6);
+    });
+
+    it('reports a Voyage failure as an error, never as unranked results', async () => {
+      e2e.mockSuccessfulSearch([{ id: '1', title: 'R', url: 'https://r.com' }]);
+      e2e.getServer().mock('POST', '/rerank', { status: 401, data: { detail: 'Provided API key is invalid.' } });
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'q', rerank: true }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Voyage rerank failed (HTTP 401): Provided API key is invalid.');
+    });
+
+    it('requires VOYAGE_API_KEY when rerank is requested', async () => {
+      delete process.env.VOYAGE_API_KEY;
+      e2e.mockSuccessfulSearch([{ id: '1', title: 'R', url: 'https://r.com' }]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'q', rerank: true }, {});
+      process.env.VOYAGE_API_KEY = 'test-voyage-key';
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('VOYAGE_API_KEY is not set');
+    });
+
+    it('rejects relevantTo without page text', async () => {
+      e2e.mockSuccessfulContents([{ id: 'https://p.com', url: 'https://p.com', title: 'Page' }]);
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({ urls: ['https://p.com'], relevantTo: 'q', includeText: false }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('relevantTo needs page text');
+    });
+  });
+
   describe('Agent Run Tool', () => {
     it('creates a run, polls until completed, and formats output', async () => {
       let polls = 0;

@@ -144,8 +144,30 @@ export interface ExaContextResponse {
   costDollars?: ExaCostDollars;
 }
 
+/**
+ * Voyage usage attached to a response that was reranked
+ */
+export interface VoyageUsage {
+  model: string;
+  totalTokens: number;
+}
+
+/**
+ * A passage selected from a page by relevance to a query
+ */
+export interface RelevantChunk {
+  text: string;
+  score: number;
+}
+
 export interface ExaSearchResult {
   id: string;
+  /** Voyage relevance score, when the results were reranked */
+  rerankScore?: number;
+  /** Most relevant passages, when web_fetch was called with relevantTo */
+  relevantChunks?: RelevantChunk[];
+  /** Number of chunks the page was split into, with relevantTo */
+  totalChunks?: number;
   title?: string;
   url: string;
   publishedDate?: string;
@@ -178,6 +200,8 @@ export interface ExaSearchResponse {
   };
   costDollars?: ExaCostDollars;
   searchTime?: number;
+  /** Set when results were reranked with Voyage */
+  voyage?: VoyageUsage;
 }
 
 /**
@@ -198,4 +222,6 @@ export interface ExaCrawlResponse {
   results: ExaSearchResult[];
   statuses?: ExaContentStatus[];
   costDollars?: ExaCostDollars;
+  /** Set when passages were selected with Voyage */
+  voyage?: VoyageUsage;
 }

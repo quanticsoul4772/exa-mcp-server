@@ -3,6 +3,7 @@ import { createTool } from "./tool-builder.js";
 import { ExaCrawlRequest, ExaCrawlResponse } from "../types.js";
 import { ResponseFormatter } from "../utils/formatter.js";
 import { DEFAULT_EXTRAS, SECTIONS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
+import { selectRelevantChunks } from "./rerank.js";
 
 /** Default per-URL text limit when the caller does not set one */
 export const DEFAULT_TEXT_PER_URL = 10000;
@@ -10,12 +11,23 @@ export const DEFAULT_TEXT_PER_URL = 10000;
 export const DEFAULT_TEXT_TOTAL = 100000;
 
 /**
- * Per-URL text limit: the caller's value, else 10000 shrunk so the total
- * across all URLs stays within 100000 characters
+ * With relevantTo only the best passages are returned, so more of each page
+ * is fetched to choose from: 50000 per URL, at most 500000 in total (well
+ * inside one Voyage rerank request)
  */
-export function textLimitPerUrl(urlCount: number, requested?: number): number {
+export const RELEVANT_TEXT_PER_URL = 50000;
+export const RELEVANT_TEXT_TOTAL = 500000;
+
+/**
+ * Per-URL text limit: the caller's value, else the per-URL default shrunk so
+ * the total across all URLs stays within the total budget
+ */
+export function textLimitPerUrl(urlCount: number, requested?: number, relevantTo = false): number {
   if (requested !== undefined) return requested;
-  return Math.min(DEFAULT_TEXT_PER_URL, Math.floor(DEFAULT_TEXT_TOTAL / Math.max(1, urlCount)));
+  const [perUrl, total] = relevantTo
+    ? [RELEVANT_TEXT_PER_URL, RELEVANT_TEXT_TOTAL]
+    : [DEFAULT_TEXT_PER_URL, DEFAULT_TEXT_TOTAL];
+  return Math.min(perUrl, Math.floor(total / Math.max(1, urlCount)));
 }
 
 const webFetchSchema = z.object({
@@ -31,6 +43,12 @@ const webFetchSchema = z.object({
     .describe("Only keep these page sections (best effort), e.g. ['body']"),
   excludeSections: z.array(z.enum(SECTIONS)).optional()
     .describe("Drop these page sections (best effort), e.g. ['navigation', 'footer']"),
+  relevantTo: z.string().min(1).optional()
+    .describe("Return only the passages of each page most relevant to this query, scored by Voyage reranking, instead of the whole text. Needs VOYAGE_API_KEY"),
+  topChunks: z.coerce.number().int().min(1).max(50).optional().default(5)
+    .describe("With relevantTo: passages kept per page (default 5)"),
+  chunkCharacters: z.coerce.number().int().min(200).max(8000).optional().default(1500)
+    .describe("With relevantTo: approximate passage size in characters (default 1500)"),
   includeHighlights: z.boolean().optional().default(false),
   highlightsQuery: z.string().optional()
     .describe("Pick highlights relevant to this query (implies includeHighlights)"),
@@ -52,7 +70,7 @@ const webFetchSchema = z.object({
 export const webFetchTool = createTool({
   name: "web_fetch",
   title: "Fetch Web Pages (Exa)",
-  description: "Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.",
+  description: "Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Set relevantTo to get only the passages that matter for a question. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.",
   schema: webFetchSchema,
   enabled: true,
   endpoint: '/contents',
@@ -62,7 +80,7 @@ export const webFetchTool = createTool({
     return {
       urls: args.urls,
       text: args.includeText ? {
-        maxCharacters: textLimitPerUrl(args.urls.length, args.textMaxCharacters),
+        maxCharacters: textLimitPerUrl(args.urls.length, args.textMaxCharacters, args.relevantTo !== undefined),
         includeHtmlTags: args.includeHtmlTags,
         ...(args.textVerbosity && { verbosity: args.textVerbosity }),
         ...(args.includeSections && { includeSections: args.includeSections }),
@@ -76,6 +94,13 @@ export const webFetchTool = createTool({
       ...(args.subpages && { subpages: args.subpages }),
       ...(args.subpageTarget && { subpageTarget: args.subpageTarget })
     };
+  },
+  postProcess: async (data: ExaCrawlResponse, args, { signal }) => {
+    if (!args.relevantTo) return data;
+    if (!args.includeText) {
+      throw new Error("relevantTo needs page text; it cannot be used with includeText: false");
+    }
+    return selectRelevantChunks(data, args.relevantTo, args.topChunks, args.chunkCharacters, signal);
   },
   formatResponse: (data: ExaCrawlResponse) => ResponseFormatter.formatContentsResponse(data),
   getStartContext: (args) => `Fetching ${args.urls.length} URL(s)`,

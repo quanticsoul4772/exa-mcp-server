@@ -54,7 +54,15 @@ const configSchema = z.object({
     ),
     maxSize: z.coerce.number().int().min(10).max(1000).default(100),
     ttlMinutes: z.coerce.number().int().min(1).max(60).default(5)
-  })
+  }),
+
+  // Voyage AI (optional: only the rerank/relevantTo options use it)
+  voyage: z.object({
+    apiKey: z.string().min(1).optional(),
+    baseUrl: z.string().url().default('https://api.voyageai.com/v1'),
+    rerankModel: z.string().min(1).default('rerank-3-lite'),
+    timeout: z.coerce.number().int().min(1000).max(120000).default(30000)
+  }).default({})
 }).strict();
 
 /**
@@ -87,6 +95,12 @@ function createRawConfig() {
       enabled: process.env.CACHE_ENABLED,
       maxSize: process.env.CACHE_MAX_SIZE,
       ttlMinutes: process.env.CACHE_TTL_MINUTES
+    },
+    voyage: {
+      apiKey: process.env.VOYAGE_API_KEY || undefined,
+      baseUrl: process.env.VOYAGE_BASE_URL,
+      rerankModel: process.env.VOYAGE_RERANK_MODEL,
+      timeout: process.env.VOYAGE_TIMEOUT
     }
   };
 }
@@ -205,6 +219,10 @@ export function getSanitizedConfig(): Record<string, unknown> {
     exa: {
       ...config.exa,
       apiKey: config.exa.apiKey ? '[REDACTED]' : undefined
+    },
+    voyage: {
+      ...config.voyage,
+      apiKey: config.voyage.apiKey ? '[REDACTED]' : undefined
     }
   };
 }

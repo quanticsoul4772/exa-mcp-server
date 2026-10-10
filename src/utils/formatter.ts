@@ -4,7 +4,8 @@ import {
   ExaCrawlResponse,
   ExaGrounding,
   ExaSearchResponse,
-  ExaSearchResult
+  ExaSearchResult,
+  VoyageUsage
 } from "../types.js";
 
 /**
@@ -40,6 +41,8 @@ export class ResponseFormatter {
 
     const cost = this.formatCost(response.costDollars);
     if (cost) lines.push(cost);
+    const voyage = this.formatVoyageUsage(response.voyage);
+    if (voyage) lines.push(voyage);
 
     return lines.join('\n');
   }
@@ -52,6 +55,10 @@ export class ResponseFormatter {
 
     lines.push(`${index}. ${result.title || 'Untitled'}`);
     lines.push(`   URL: ${result.url}`);
+
+    if (result.rerankScore !== undefined) {
+      lines.push(`   Relevance: ${result.rerankScore.toFixed(3)}`);
+    }
 
     if (result.publishedDate) {
       lines.push(`   Published: ${this.formatDate(result.publishedDate)}`);
@@ -172,6 +179,10 @@ export class ResponseFormatter {
         lines.push('', '**Highlights:**');
         result.highlights.forEach(h => lines.push(`- ${h}`));
       }
+      if (result.relevantChunks) {
+        lines.push('', `**Relevant passages** (${result.relevantChunks.length} of ${result.totalChunks}, page order):`);
+        result.relevantChunks.forEach(c => lines.push('', `[relevance ${c.score.toFixed(3)}]`, c.text));
+      }
       if (result.text) lines.push('', result.text);
       lines.push(...this.formatExtras(result, ''));
       if (result.subpages?.length) {
@@ -193,7 +204,17 @@ export class ResponseFormatter {
 
     const cost = this.formatCost(response.costDollars);
     if (cost) lines.push(cost);
+    const voyage = this.formatVoyageUsage(response.voyage);
+    if (voyage) lines.push(voyage);
     return lines.join('\n');
+  }
+
+  /**
+   * Voyage usage line, or an empty string when Voyage was not used
+   */
+  static formatVoyageUsage(usage?: VoyageUsage): string {
+    if (!usage) return '';
+    return `Voyage ${usage.model}: ${usage.totalTokens} tokens`;
   }
 
   /**

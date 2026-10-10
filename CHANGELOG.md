@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.7.0] - 2026-10-10
+
+### Added
+- `web_fetch` `relevantTo`: splits each page into passages (`chunkCharacters`, default 1500), scores them against the question with one Voyage rerank call, and returns each page's `topChunks` best passages (default 5) in page order instead of the whole text. With `relevantTo`, up to 50,000 characters per URL (500,000 in total) are fetched to choose from. Live: a long Wikipedia article came back as 3 passages, about 4,000 characters instead of 50,000.
+- `exa_search` `rerank`: fetches `rerankCandidates` (default 3 x `numResults`, max 100), reranks them with Voyage against the query, and returns the best `numResults` with a relevance score.
+- Voyage token usage is shown under Exa's estimated cost.
+- Settings: `VOYAGE_API_KEY`, `VOYAGE_RERANK_MODEL` (default `rerank-3-lite`), `VOYAGE_BASE_URL`, `VOYAGE_TIMEOUT`.
+
+Both options are off unless requested. If requested without `VOYAGE_API_KEY`, or if Voyage fails, the call returns an error naming Voyage; it never falls back to unranked output. The raw Exa response is cached before reranking, so a retry costs no Exa call.
+
 ## [0.6.0] - 2026-10-10
 
 ### Added
