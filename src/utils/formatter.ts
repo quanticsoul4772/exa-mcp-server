@@ -1,24 +1,25 @@
-import { ExaSearchResult, ExaSearchResponse } from "../types.js";
+import {
+  ExaContentStatus,
+  ExaCostDollars,
+  ExaCrawlResponse,
+  ExaGrounding,
+  ExaSearchResponse,
+  ExaSearchResult
+} from "../types.js";
 
 /**
- * Formats Exa search responses into human-readable text.
+ * Formats Exa responses into human-readable text.
  * Provides static methods for formatting different types of responses.
- * All methods return single-line formatted text for Claude UI compatibility.
- * 
+ *
  * @class ResponseFormatter
  */
 export class ResponseFormatter {
   /**
-   * Format a complete search response.
-   * 
+   * Format a complete search response: synthesized output (if any), results, cost.
+   *
    * @param {ExaSearchResponse} response - The search response from Exa API
    * @param {string} toolName - Name of the tool that made the request
    * @returns {string} Formatted multi-line string with search results
-   * 
-   * @example
-   * ```typescript
-   * const formatted = ResponseFormatter.formatSearchResponse(response, 'exa_search');
-   * ```
    */
   static formatSearchResponse(response: ExaSearchResponse, toolName: string): string {
     if (!response.results || response.results.length === 0) {
@@ -26,12 +27,19 @@ export class ResponseFormatter {
     }
 
     const lines: string[] = [];
-    
+
     lines.push(`Found ${response.results.length} results for your ${toolName.replace('_', ' ')} query:\n`);
+
+    if (response.output) {
+      lines.push(this.formatSynthesizedOutput(response.output.content, response.output.grounding));
+    }
 
     response.results.forEach((result, index) => {
       lines.push(this.formatSearchResult(result, index + 1));
     });
+
+    const cost = this.formatCost(response.costDollars);
+    if (cost) lines.push(cost);
 
     return lines.join('\n');
   }
@@ -54,7 +62,7 @@ export class ResponseFormatter {
     }
 
     if (result.summary) {
-      lines.push(`   Summary: ${result.summary}`);
+      lines.push(`   Summary: ${this.cleanSummary(result.summary)}`);
     }
 
     if (result.text) {
@@ -67,12 +75,14 @@ export class ResponseFormatter {
       result.highlights.forEach(h => lines.push(`   - ${this.truncateText(h, 200)}`));
     }
 
-    if (result.extras?.links?.length) {
-      lines.push(`   Links: ${result.extras.links.length} embedded`);
-    }
+    lines.push(...this.formatExtras(result, '   '));
 
-    if (result.extras?.imageUrls?.length) {
-      lines.push(`   Images: ${result.extras.imageUrls.length} found`);
+    if (result.subpages?.length) {
+      lines.push(`   Subpages:`);
+      result.subpages.forEach(sp => {
+        lines.push(`   - ${sp.title || 'Untitled'}: ${sp.url}`);
+        if (sp.summary) lines.push(`     ${this.truncateText(sp.summary, 200)}`);
+      });
     }
 
     lines.push(''); // Empty line between results
@@ -81,52 +91,126 @@ export class ResponseFormatter {
   }
 
   /**
-   * Format a crawling response (single URL fetch)
+   * Format synthesized output (search/answer outputSchema, agent runs)
+   * with its field-level grounding citations
    */
-  static formatCrawlResponse(results: ExaSearchResult[]): string {
-    if (!results || results.length === 0) {
-      return "Could not fetch content from the provided URL.";
+  static formatSynthesizedOutput(content: unknown, grounding?: ExaGrounding[] | null): string {
+    const lines: string[] = ['## Synthesized Output', ''];
+    lines.push(typeof content === 'string'
+      ? content
+      : '```json\n' + JSON.stringify(content, null, 2) + '\n```');
+    if (grounding?.length) {
+      lines.push('', this.formatGrounding(grounding));
     }
-
-    const result = results[0];
-    const lines: string[] = [];
-    
-    lines.push(`Content from: ${result.url}\n`);
-    
-    if (result.title) {
-      lines.push(`Title: ${result.title}`);
-    }
-    
-    if (result.author) {
-      lines.push(`Author: ${result.author}`);
-    }
-    
-    if (result.publishedDate) {
-      lines.push(`Published: ${this.formatDate(result.publishedDate)}`);
-    }
-    
-    lines.push('\n--- Content ---\n');
-    
-    if (result.text) {
-      lines.push(result.text);
-    } else {
-      lines.push('No text content available.');
-    }
-    
+    lines.push('');
     return lines.join('\n');
   }
 
   /**
+   * Format field-level grounding citations
+   */
+  static formatGrounding(grounding: ExaGrounding[]): string {
+    const lines = ['### Grounding'];
+    grounding.forEach(g => {
+      const confidence = g.confidence ? ` (${g.confidence} confidence)` : '';
+      const sources = g.citations.map(c => c.title ? `[${c.title}](${c.url})` : c.url).join(', ');
+      lines.push(`- ${g.field || 'output'}${confidence}: ${sources}`);
+    });
+    return lines.join('\n');
+  }
+
+  /**
+   * Exa summaries often start with their own "Summary:" label; drop it
+   */
+  private static cleanSummary(summary: string): string {
+    return summary.replace(/^\s*Summary:\s*/i, '');
+  }
+
+  /**
+   * Format the estimated cost line, or an empty string when the response has no cost
+   */
+  static formatCost(cost?: ExaCostDollars | null): string {
+    if (typeof cost?.total !== 'number') return '';
+    return `Estimated cost: $${cost.total.toFixed(4)}`;
+  }
+
+  /**
+   * Format embedded links, images and code blocks for a result
+   */
+  static formatExtras(result: ExaSearchResult, indent: string): string[] {
+    const lines: string[] = [];
+    if (result.extras?.links?.length) {
+      lines.push(`${indent}Links: ${result.extras.links.join(', ')}`);
+    }
+    if (result.extras?.imageLinks?.length) {
+      lines.push(`${indent}Images: ${result.extras.imageLinks.join(', ')}`);
+    }
+    if (result.extras?.codeBlocks?.length) {
+      lines.push(`${indent}Code blocks: ${result.extras.codeBlocks.length}`);
+    }
+    return lines;
+  }
+
+  /**
+   * Format a /contents response: full content per URL, then failed URLs from statuses
+   */
+  static formatContentsResponse(response: ExaCrawlResponse): string {
+    const results = response.results || [];
+    const failures = (response.statuses || []).filter(st => st.status === 'error');
+    if (results.length === 0 && failures.length === 0) {
+      return "Could not fetch content from the provided URLs.";
+    }
+
+    const lines: string[] = [];
+    results.forEach((result, idx) => {
+      lines.push(`## ${idx + 1}. ${result.title || 'Untitled'}`);
+      lines.push(`URL: ${result.url}`);
+      if (result.author) lines.push(`Author: ${result.author}`);
+      if (result.publishedDate) lines.push(`Published: ${this.formatDate(result.publishedDate)}`);
+      if (result.summary) lines.push('', `**Summary:** ${this.cleanSummary(result.summary)}`);
+      if (result.highlights?.length) {
+        lines.push('', '**Highlights:**');
+        result.highlights.forEach(h => lines.push(`- ${h}`));
+      }
+      if (result.text) lines.push('', result.text);
+      lines.push(...this.formatExtras(result, ''));
+      if (result.subpages?.length) {
+        lines.push('', '**Subpages:**');
+        result.subpages.forEach(sp => {
+          lines.push(`### ${sp.title || 'Untitled'} (${sp.url})`);
+          if (sp.summary) lines.push(`**Summary:** ${this.cleanSummary(sp.summary)}`);
+          if (sp.text) lines.push(sp.text);
+        });
+      }
+      lines.push('');
+    });
+
+    if (failures.length) {
+      lines.push('## Failed URLs');
+      failures.forEach(f => lines.push(`- ${this.formatStatusError(f)}`));
+      lines.push('');
+    }
+
+    const cost = this.formatCost(response.costDollars);
+    if (cost) lines.push(cost);
+    return lines.join('\n');
+  }
+
+  /**
+   * Describe one failed /contents status entry
+   */
+  static formatStatusError(status: ExaContentStatus): string {
+    const tag = status.error?.tag || 'error';
+    const http = status.error?.httpStatusCode ? ` (HTTP ${status.error.httpStatusCode})` : '';
+    return `${status.id}: ${tag}${http}`;
+  }
+
+  /**
    * Format error messages for consistent error reporting.
-   * 
-   * @param {any} error - Error object (can be AxiosError or generic Error)
+   *
+   * @param {unknown} error - Error object (can be AxiosError or generic Error)
    * @param {string} toolName - Name of the tool that encountered the error
    * @returns {string} Formatted error message
-   * 
-   * @example
-   * ```typescript
-   * const errorMsg = ResponseFormatter.formatError(error, 'my_tool');
-   * ```
    */
   static formatError(error: unknown, toolName: string): string {
     let message = `Error in ${toolName.replace('_', ' ')}:\n\n`;
@@ -147,7 +231,7 @@ export class ResponseFormatter {
     if (status) {
       message += `\n\nHTTP ${status}`;
       if (status === 401 || status === 403) {
-        message += ' — check that EXA_API_KEY is set and valid.';
+        message += ' — check that EXA_API_KEY is set and valid, and that your Exa plan includes this API.';
       } else if (status === 429) {
         message += ' — rate limit exceeded. Wait before retrying.';
       } else if (status >= 500) {
@@ -172,7 +256,7 @@ export class ResponseFormatter {
   /**
    * Format date string
    */
-  private static formatDate(dateString: string): string {
+  static formatDate(dateString: string): string {
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', {
@@ -183,134 +267,6 @@ export class ResponseFormatter {
     } catch {
       return dateString;
     }
-  }
-
-  /**
-   * Format Twitter search results
-   */
-  static formatTwitterResponse(results: ExaSearchResult[]): string {
-    if (!results || results.length === 0) {
-      return "No tweets found.";
-    }
-
-    const lines: string[] = [];
-    
-    lines.push(`Found ${results.length} tweets:\n`);
-
-    results.forEach((result, index) => {
-      lines.push(`${index + 1}. ${result.title || 'Tweet'}`);
-      lines.push(`   URL: ${result.url}`);
-      
-      if (result.publishedDate) {
-        lines.push(`   Posted: ${this.formatDate(result.publishedDate)}`);
-      }
-      
-      if (result.author) {
-        lines.push(`   Author: ${result.author}`);
-      }
-      
-      if (result.text) {
-        const preview = this.truncateText(result.text, 280); // Twitter-like length
-        lines.push(`   ${preview}`);
-      }
-      
-      lines.push(''); // Empty line between tweets
-    });
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Format research paper results
-   */
-  static formatResearchPaperResponse(results: ExaSearchResult[]): string {
-    if (!results || results.length === 0) {
-      return "No research papers found.";
-    }
-
-    const lines: string[] = [];
-    
-    lines.push(`Found ${results.length} research papers:\n`);
-
-    results.forEach((result, index) => {
-      lines.push(`${index + 1}. ${result.title || 'Untitled Paper'}`);
-      lines.push(`   URL: ${result.url}`);
-      
-      if (result.publishedDate) {
-        lines.push(`   Published: ${this.formatDate(result.publishedDate)}`);
-      }
-      
-      if (result.author) {
-        lines.push(`   Authors: ${result.author}`);
-      }
-      
-      if (result.text) {
-        const preview = this.truncateText(result.text, 400);
-        lines.push(`   Abstract: ${preview}`);
-      }
-      
-      lines.push(''); // Empty line between papers
-    });
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Format company research results
-   */
-  static formatCompanyResponse(results: ExaSearchResult[]): string {
-    if (!results || results.length === 0) {
-      return "No company information found.";
-    }
-
-    const lines: string[] = [];
-    
-    lines.push(`Found ${results.length} company-related results:\n`);
-
-    results.forEach((result, index) => {
-      lines.push(`${index + 1}. ${result.title || 'Company Information'}`);
-      lines.push(`   URL: ${result.url}`);
-      
-      if (result.publishedDate) {
-        lines.push(`   Updated: ${this.formatDate(result.publishedDate)}`);
-      }
-      
-      if (result.text) {
-        const preview = this.truncateText(result.text, 350);
-        lines.push(`   Summary: ${preview}`);
-      }
-      
-      lines.push(''); // Empty line between results
-    });
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Format competitor finder results
-   */
-  static formatCompetitorResponse(results: ExaSearchResult[]): string {
-    if (!results || results.length === 0) {
-      return "No competitors found.";
-    }
-
-    const lines: string[] = [];
-    
-    lines.push(`Found ${results.length} potential competitors:\n`);
-
-    results.forEach((result, index) => {
-      lines.push(`${index + 1}. ${result.title || 'Company'}`);
-      lines.push(`   URL: ${result.url}`);
-      
-      if (result.text) {
-        const preview = this.truncateText(result.text, 200);
-        lines.push(`   Description: ${preview}`);
-      }
-      
-      lines.push(''); // Empty line between competitors
-    });
-
-    return lines.join('\n');
   }
 
   /**

@@ -8,7 +8,7 @@ interface MockResponse {
 }
 
 interface MockEndpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   response: MockResponse | ((req: Request) => MockResponse);
 }

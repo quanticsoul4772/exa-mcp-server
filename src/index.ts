@@ -8,10 +8,11 @@ import { z } from 'zod';
 // Import configuration first to validate environment variables
 import { getConfig } from "./config/index.js";
 // Import the tool registry system
-import { toolRegistry } from "./tools/index.js";
+import { toolRegistry, resolveToolNames } from "./tools/index.js";
 import { ToolHandlerExtra } from "./tools/config.js";
-import { logInfo, logError } from "./utils/pinoLogger.js";
+import { logInfo, logError, logWarn } from "./utils/pinoLogger.js";
 import { CLIArguments } from "./types/cli.js";
+import { SERVER_VERSION } from "./version.js";
 
 /**
  * Exa AI Web Search MCP Server
@@ -20,10 +21,8 @@ import { CLIArguments } from "./types/cli.js";
  * Exa is a search engine and API specifically designed for up-to-date web searching and retrieval,
  * offering more recent and comprehensive results than what might be available in an LLM's training data.
  * 
- * The server provides tools that enable:
- * - Real-time web searching with configurable parameters
- * - Research paper searches
- * - And more to come!
+ * The server provides tools for web search, page fetching, answers with
+ * citations, code search, research agent runs, scheduled monitors and Websets.
  */
 
 class ExaServer {
@@ -33,7 +32,7 @@ class ExaServer {
   constructor(specifiedTools: Set<string>) {
     this.server = new McpServer({
       name: "exa-search-server",
-      version: "0.3.6"
+      version: SERVER_VERSION
     });
     this.specifiedTools = specifiedTools;
     
@@ -122,9 +121,16 @@ async function main() {
 
     // Convert comma-separated string to Set for easier lookups
     const toolsString = argv.tools || '';
-    const specifiedTools = new Set<string>(
-      toolsString ? toolsString.split(',').map((tool: string) => tool.trim()) : []
-    );
+    const requestedTools = toolsString
+      ? toolsString.split(',').map((tool: string) => tool.trim()).filter(Boolean)
+      : [];
+    const { tools: specifiedTools, remapped, unknown } = resolveToolNames(requestedTools);
+    if (remapped.length) {
+      logWarn(`Removed tool names mapped to replacements: ${remapped.join(', ')}`);
+    }
+    if (unknown.length) {
+      logWarn(`Unknown tool names ignored: ${unknown.join(', ')}`);
+    }
 
     // List all available tools if requested
     if (argv['list-tools']) {

@@ -23,6 +23,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.5.0] - 2026-10-10
+
+Brought the server in line with the current Exa API. Several default tools were failing on every call.
+
+### Fixed
+- `deep_research` called the Exa Research API, which Exa retired (HTTP 410). It is replaced by `agent_run`.
+- `answer_question` sent `numResults`, `highlights` and an object for `text`, which `/answer` rejects (HTTP 400). It now sends only supported fields and no longer prints a "Relevance" score (Exa removed it).
+- `extras` were sent as booleans with `imageUrls`; Exa expects counts and `imageLinks` (HTTP 400). Affected 5 tools.
+- `code_search` read a `results` array, but `/context` returns a single `response` string, so it always reported no results.
+- `find_similar` sent content options at the top level, where Exa ignores them; they are now nested under `contents`. Removed the "Similarity" percentage (Exa no longer returns scores).
+- Structured output from `exa_search` (`outputSchema`) was discarded; it is now shown with field-level grounding.
+- Requests with `maxAgeHours: 0` (force fresh) could be answered from the local cache.
+- `/contents` per-URL failures (`statuses`) were not reported.
+- The usage CSV defaulted to `/home/agent/workspace/metrics`, which created a stray `\home` folder on Windows. It is now written only when `EXA_USAGE_CSV` is set.
+- Reported server version was stuck at 0.3.6.
+- Clean installs failed: `ts-jest` 29.3 did not support `jest` 30, and the lockfile omitted `jest-util`, so no tests ran.
+
+### Added
+- `agent_run`: Exa Agent API runs with effort, cost and time caps, structured output, and resume by `runId`.
+- `monitors`: scheduled searches with webhook delivery (create, list, get, update, delete, list_runs, get_run).
+- `websets`: create and list Websets and read their items (requires Websets API access).
+- `web_fetch`: fetch 1-100 URLs with section filters, guided highlights and summaries, `snapshotAsOf`, subpages.
+- `exa_search`: `deep-lite` search type, `publication` category, subpages, guided summaries and highlights, `moderation`, `systemPrompt`, `objective`, `additionalQueries`, `livecrawlTimeout`.
+- `answer_question`: `model`, `systemPrompt`, `outputSchema`, `userLocation`.
+- Estimated cost (`costDollars`) on every response that reports it.
+
+### Changed
+- `research_paper_search`, `company_research`, `twitter_search` and `competitor_finder` are removed; `exa_search` filters cover them. `crawling` and `batch_extract` are replaced by `web_fetch`. Old names passed to `--tools` map to the replacements with a warning.
+- Freshness uses `maxAgeHours` (-1 to 720) instead of the deprecated `livecrawl`. When omitted, Exa uses its cache and crawls live only when nothing is cached; previously most tools forced a live crawl on every call.
+- `includeText` / `excludeText` are arrays (Exa's current format; Exa marks them deprecated).
+- MCP SDK 1.18 to 1.32, `ts-jest` 29.4.
+
 ## [0.3.6] - 2024-01-15
 
 ### Added

@@ -4,108 +4,75 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Building and Development
 ```bash
-npm run build          # Build TypeScript to JavaScript
-npm run watch         # Watch mode for development
-npm run prepare       # Build before npm install
-```
-
-### Testing
-```bash
-npm test              # Run all tests
-npm run test:watch    # Run tests in watch mode
-npm run test:coverage # Run tests with coverage report
-```
-
-### Type Checking and Linting
-```bash
-npm run typecheck    # Check TypeScript types without building
-npm run lint         # Run ESLint to check code quality
-npm run lint:fix     # Run ESLint and auto-fix issues
-```
-
-### Running the Server
-```bash
-npm run inspector     # Test with MCP Inspector tool
-npx exa-mcp-server   # Run server directly (after build)
+npm run build          # Build TypeScript to JavaScript (build/)
+npm run watch          # Watch mode
+npm test               # Run all tests
+npm run test:coverage  # Tests with coverage report
+npm run typecheck      # tsc --noEmit
+npm run lint           # ESLint
+npm run lint:fix       # ESLint with auto-fix
+npm run inspector      # Test with MCP Inspector
 ```
 
 ## Architecture Overview
 
-This is a Model Context Protocol (MCP) server that provides Exa AI search capabilities to Claude and other MCP-compatible clients. The server is built with TypeScript and follows a plugin-based tool architecture.
+An MCP server (stdio) exposing Exa AI APIs as tools. TypeScript, ES modules (`.js` extensions in imports), `@modelcontextprotocol/sdk`, Zod schemas, Axios.
 
 ### Core Components
 
-1. **Entry Point** (`src/index.ts`): 
-   - MCP server initialization using `@modelcontextprotocol/sdk`
-   - CLI argument parsing with yargs for tool selection
-   - Dynamic tool registration based on command-line arguments
+1. **Entry point** (`src/index.ts`): yargs CLI (`--tools`, `--list-tools`), maps removed tool names to replacements via `resolveToolNames`, registers tools with the MCP server, and injects the server instance into handlers for progress notifications.
 
-2. **Tool System** (`src/tools/`):
-   - Plugin-based architecture where each tool is self-registering
-   - Central registry pattern in `config.ts` with `toolRegistry` object
-   - Each tool module imports the registry and registers itself on load
-   - Tools implement the `ToolRegistry` interface with name, description, schema (Zod), handler, and enabled flag
+2. **Tool registry** (`src/tools/index.ts`): a single `toolRegistry` object listing every tool, plus `toolAliases` for names removed in 0.5.0. Tools do not self-register.
 
-3. **Available Tools**:
-   - `exa_search`: General web search with deep search types (instant/fast/auto/neural/deep), structured outputs, freshness control
-   - `research_paper_search`: Academic paper search
-   - `twitter_search`: Twitter/X.com search
-   - `company_research`: Company website crawling with summaries and subpages
-   - `crawling`: Direct URL content extraction with freshness control
-   - `competitor_finder`: Competitor identification
-   - `answer_question`: Direct Q&A with citations
-   - `find_similar`: Semantic similarity search with summaries and domain filtering
-   - `batch_extract`: Multi-URL content extraction with summaries, subpages, and extras
-   - `deep_research`: Multi-step async research with structured output
-   - `code_search`: Code-optimized search via `/context` endpoint (GitHub, docs, Stack Overflow)
+3. **Tool builders**:
+   - `tool-builder.ts`: `createTool` / `createSearchTool` for single-request POST endpoints. Validates args, caches responses (skipped when the request has `maxAgeHours: 0`), rate-limits, sends progress, formats output.
+   - `action-tool.ts`: `createActionTool` for stateful APIs with an `action` argument (create/list/get/...). Never caches. Used by `monitors` and `websets`.
+   - `agentRun.ts`: custom handler that creates an Agent API run and polls it.
+   - `shared.ts`: shared Zod fields and request helpers (freshness, summary/highlights options, extras).
 
-4. **Configuration** (`src/config/index.ts`):
-   - Centralized configuration with Zod validation
-   - Fail-fast behavior on invalid configuration
-   - Environment variables: `EXA_API_KEY` (required), `LOG_LEVEL`, `NODE_ENV`, `REDACT_LOGS`, cache settings
-   - See `.env.example` for all supported environment variables
+4. **Tools**:
+   - `exa_search` (`/search`): search with filters (category, domains, dates, subpages), guided summaries/highlights, optional `outputSchema` synthesis
+   - `web_fetch` (`/contents`): 1-100 URLs, reports per-URL `statuses` failures
+   - `answer_question` (`/answer`): cited answer, optional structured answer
+   - `find_similar` (`/findSimilar`, deprecated by Exa): content options nested under `contents`
+   - `code_search` (`/context`): returns one `response` text block
+   - `agent_run` (`/agent/runs`): off by default
+   - `monitors` (`/monitors`): off by default
+   - `websets` (`/websets/v0/websets`): off by default; needs Websets API access on the Exa plan
 
-5. **Utilities** (`src/utils/`):
-   - `formatter.ts`: Response formatting with single-line output for Claude UI compatibility
-   - `logger.ts` & `pinoLogger.ts`: Structured logging with sensitive data redaction
-   - `exaClient.ts`: Centralized Axios client with retry logic and error handling
-   - `cache.ts`: LRU cache with TTL for API request optimization
+5. **Configuration** (`src/config/index.ts`): Zod-validated env config, fail-fast. `EXA_API_KEY` required. See `.env.example`.
 
-### Key Design Patterns
+6. **Utilities** (`src/utils/`): `formatter.ts` (output text, synthesized output, grounding, cost, `/contents` statuses), `exaClient.ts` (shared Axios client, retries, error handling), `cache.ts` (LRU + TTL), `rateLimiter.ts`, `pinoLogger.ts` (redacted structured logs), `usageLogger.ts` (CSV only when `EXA_USAGE_CSV` is set).
 
-- **Self-registering tools**: Each tool module automatically registers itself when imported
-- **Zod schemas**: Type-safe parameter validation for all tools including URL validation
-- **Async handlers**: All tool handlers return promises for non-blocking operations
-- **Centralized error handling**: Shared utilities in `exaClient.ts` for consistent error handling
-- **ESM modules**: Uses ES modules with `.js` extensions in imports
-- **Retry logic**: Exponential backoff for failed API requests (configurable via `EXA_RETRIES`)
-- **Request caching**: LRU cache to reduce redundant API calls (configurable via `CACHE_*` env vars)
+7. **Version** (`src/version.ts`): `SERVER_VERSION` must equal `package.json` version; `src/__tests__/version.test.ts` enforces it.
 
-### Adding New Tools
+### Adding a New Tool
 
-1. Create new tool file in `src/tools/`
-2. Import and use `toolRegistry` from `./config.js`
-3. Register tool with unique name, schema, and handler
-4. Import the new tool in `src/tools/index.ts`
-5. Tool will be automatically available with `--tools` flag
+1. Create `src/tools/<name>.ts` using `createTool`, `createSearchTool` or `createActionTool`.
+2. Add it to `toolRegistry` in `src/tools/index.ts`.
+3. Add request/response types to `src/types.ts` if shared.
+4. Add tests; endpoint-level tests go in `src/__tests__/integration/tools.e2e.test.ts` (an Express test server records request bodies).
 
-### Testing Approach
+### Exa API Notes (checked 2026-10-10)
 
-- Jest with ts-jest for TypeScript support
-- Test files in `__tests__` directories mirroring source structure
-- Mock external API calls in tests
-- Coverage reports generated in HTML and LCOV formats
-- Run specific test: `npm test -- path/to/test.ts`
+- Search types: `instant | fast | auto | deep-lite | deep | deep-reasoning`. Category `publication` replaced `research paper`.
+- Freshness: `maxAgeHours` (-1 to 720) and `livecrawlTimeout`; `livecrawl` is deprecated.
+- `extras` take integer counts (`links`, `imageLinks`, `richLinks`, `richImageLinks`, `codeBlocks`).
+- `/answer` accepts `query`, `text` (boolean), `model`, `systemPrompt`, `outputSchema`, `userLocation`, `stream`.
+- The Research API (`/research`) is retired (HTTP 410); use `/agent/runs`.
+- Responses include `costDollars`; result `score` fields are gone.
+- Spec: https://exa.ai/docs/exa-spec.yaml, index: https://exa.ai/docs/llms.txt
+
+## Testing
+
+- Jest with ts-jest; tests in `src/__tests__/` mirroring source.
+- Mock external API calls; never call the live API in tests.
+- Run one file: `npx jest path/to/test.ts`.
 
 ## Important Notes
 
-- The server communicates via stdio with MCP clients
-- Tool names must be unique and avoid conflicts with Claude's built-in tools
-- All responses are formatted as single-line text to prevent Claude UI issues
-- Configuration is validated at startup with fail-fast behavior
-- API key must be set as `EXA_API_KEY` environment variable (required)
-- TypeScript compilation targets ES2022 with Node16 module resolution
-- ESLint configured with TypeScript plugin, semicolons required
-- Logging uses Pino with structured output and automatic sensitive data redaction
+- Communicates over stdio with MCP clients.
+- Tool names must be unique and avoid conflicts with clients' built-in tools.
+- Configuration is validated at startup (fail fast).
+- TypeScript targets ES2022 with Node16 module resolution; ESLint requires semicolons.

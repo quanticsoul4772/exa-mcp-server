@@ -1,319 +1,202 @@
 # Tool Reference
 
-This document describes all available tools in the Exa MCP Server.
-
-## Table of Contents
-
-- [Web Search](#web-search)
-- [Research Paper Search](#research-paper-search)
-- [Twitter/X Search](#twitterx-search)
-- [Company Research](#company-research)
-- [URL Crawling](#url-crawling)
-- [Competitor Analysis](#competitor-analysis)
-
-## Web Search
-
-### `exa_search`
-
-Search the web using Exa's search capabilities.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Search query |
-| `numResults` | number | No | Number of results (default: 5) |
-
-#### Example
-
-```json
-{
-  "query": "machine learning tutorials",
-  "numResults": 10
-}
-```
-
-#### Response Format
-
-```
-Web Search: machine learning tutorials
-
-1. Title: Introduction to Machine Learning
-   URL: https://example.com/ml-intro
-   Published: 2024-01-15
-   
-   Content excerpt from the page...
-
-2. Title: Machine Learning Fundamentals
-   URL: https://example.com/ml-basics
-   Published: 2024-01-10
-   
-   Content excerpt from the page...
-```
-
-## Research Paper Search
-
-### `research_paper_search`
-
-Search research papers from academic sources.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Research topic or keyword |
-| `numResults` | number | No | Number of papers (default: 5) |
-| `maxCharacters` | number | No | Max characters per result (default: 3000) |
-
-#### Example
-
-```json
-{
-  "query": "neural network optimization",
-  "numResults": 3,
-  "maxCharacters": 2000
-}
-```
-
-#### Response Format
-
-```
-Research Papers: neural network optimization
-
-1. Title: Optimization Techniques for Neural Networks
-   Authors: Smith, J., Johnson, K.
-   Published: 2023-12-01
-   URL: https://arxiv.org/paper123
-   
-   Abstract and content excerpt...
-
-2. Title: Gradient Descent Variations
-   Authors: Lee, M.
-   Published: 2023-11-15
-   URL: https://arxiv.org/paper456
-   
-   Abstract and content excerpt...
-```
-
-## Twitter/X Search
-
-### `twitter_search`
-
-Search Twitter/X posts and profiles.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Username, hashtag, or search term |
-| `numResults` | number | No | Number of results (default: 5) |
-| `startPublishedDate` | string | No | ISO date string for start date |
-| `endPublishedDate` | string | No | ISO date string for end date |
-
-#### Example
-
-```json
-{
-  "query": "x.com/elonmusk",
-  "numResults": 10,
-  "startPublishedDate": "2024-01-01T00:00:00.000Z"
-}
-```
-
-#### Response Format
-
-```
-Twitter/X Search: x.com/elonmusk
-
-1. @elonmusk - 2024-01-20 14:30
-   Tweet content here...
-   
-   Likes: 45K | Retweets: 12K
-   URL: https://x.com/elonmusk/status/123456
-
-2. @elonmusk - 2024-01-19 09:15
-   Another tweet content...
-   
-   Likes: 38K | Retweets: 8K
-   URL: https://x.com/elonmusk/status/123457
-```
-
-## Company Research
-
-### `company_research`
-
-Research company information from their website.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Company website URL |
-| `subpages` | number | No | Number of subpages to crawl (default: 10) |
-| `subpageTarget` | string[] | No | Specific sections to target |
-
-#### Example
-
-```json
-{
-  "query": "stripe.com",
-  "subpages": 15,
-  "subpageTarget": ["about", "pricing", "docs"]
-}
-```
-
-#### Response Format
-
-```
-Company Research: stripe.com
-
-Main Page:
-- Title: Stripe - Payment Processing Platform
-- URL: https://stripe.com
-- Content overview...
-
-Subpages Found:
-
-1. About Us
-   URL: https://stripe.com/about
-   Content from about page...
-
-2. Pricing
-   URL: https://stripe.com/pricing
-   Pricing information...
-
-3. Documentation
-   URL: https://stripe.com/docs
-   Documentation overview...
-```
-
-## URL Crawling
-
-### `crawling`
-
-Extract content from specific URLs.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `url` | string | Yes | URL to crawl |
-
-#### Example
-
-```json
-{
-  "url": "https://example.com/article"
-}
-```
-
-#### Response Format
-
-```
-URL Content: https://example.com/article
-
-Title: Article Title Here
-Published: 2024-01-15
-Author: John Doe
-
-Full article content extracted from the page...
-```
-
-## Competitor Analysis
-
-### `competitor_finder`
-
-Find competitors of a company.
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Description of the company/product |
-| `numResults` | number | No | Number of competitors (default: 10) |
-| `excludeDomain` | string | No | Domain to exclude from results |
-
-#### Example
-
-```json
-{
-  "query": "payment processing API",
-  "numResults": 5,
-  "excludeDomain": "stripe.com"
-}
-```
-
-#### Response Format
-
-```
-Competitors for: payment processing API
-
-1. PayPal
-   URL: https://paypal.com
-   Description: Online payment system...
-
-2. Square
-   URL: https://square.com
-   Description: Payment and merchant services...
-
-3. Adyen
-   URL: https://adyen.com
-   Description: Payment platform...
-```
-
-## Error Handling
-
-All tools return structured error messages when issues occur:
-
-```
-Error: Invalid API key
-Please check your EXA_API_KEY environment variable.
-```
-
-Common error types:
-- Invalid parameters
-- API authentication failures
-- Rate limiting
-- Network errors
-- Invalid URLs
-
-## Rate Limiting
-
-The Exa API has rate limits. Tools will return appropriate error messages when limits are exceeded.
-
-## Response Size Limits
-
-- Default character limit per result: 3000 characters
-- Maximum results per request: Varies by tool (typically 10-20)
-- Response truncation: Long content is truncated with "..." indicator
-
-## Best Practices
-
-1. Use specific queries for better results
-2. Adjust `numResults` based on your needs
-3. For research papers, use academic terminology
-4. For Twitter searches, use "x.com/username" format for user timelines
-5. For company research, provide the root domain
-6. Check error messages for troubleshooting
-
-## Environment Variables
-
-Required:
-- `EXA_API_KEY`: Your Exa API key
-
-Optional:
-- `EXA_TIMEOUT`: Request timeout in milliseconds (default: 30000)
-- `DEBUG`: Enable debug logging (set to "true")
-
-## Debugging
-
-Enable debug output:
-```bash
-DEBUG=true npx exa-mcp-server
-```
-
-Debug information is written to stderr and includes:
-- Request IDs
-- API call details
-- Response times
-- Error details
+Generated from the tool schemas in `src/tools/` (version 0.5.0). Every tool response ends with the estimated cost when Exa reports one.
+
+## Contents
+
+- [`exa_search`](#exa_search)
+- [`web_fetch`](#web_fetch)
+- [`answer_question`](#answer_question)
+- [`find_similar`](#find_similar)
+- [`code_search`](#code_search)
+- [`agent_run`](#agent_run) (off by default)
+- [`monitors`](#monitors) (off by default)
+- [`websets`](#websets) (off by default)
+- [Removed tool names](#removed-tool-names)
+
+## exa_search
+
+Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.
+
+On by default: yes
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `query` | string | yes |  | Search query |
+| `numResults` | number | no |  | Number of search results to return (default: DEFAULT_NUM_RESULTS, 3) |
+| `searchType` | `instant` \| `fast` \| `auto` \| `deep-lite` \| `deep` \| `deep-reasoning` | no |  | Search type: 'instant' (lowest latency), 'fast', 'auto' (default), 'deep-lite', 'deep' (multi-step, slower), 'deep-reasoning' (most thorough) |
+| `category` | `company` \| `publication` \| `news` \| `personal site` \| `financial report` \| `people` | no |  | Filter by content category. 'publication' = research papers and academic sources. 'company' and 'people' do not allow date filters or excludeDomains. |
+| `includeDomains` | array of string | no |  | Only return results from these domains (e.g. ['x.com', 'twitter.com'] for posts on X; ['example.com'] for one company's site) |
+| `excludeDomains` | array of string | no |  | Exclude results from these domains (e.g. a company's own domain when looking for its competitors) |
+| `startPublishedDate` | string | no |  | Only results published after this date (ISO 8601) |
+| `endPublishedDate` | string | no |  | Only results published before this date (ISO 8601) |
+| `includeText` | array of string | no |  | Deprecated by Exa: words that results should contain (approximate, word-level matching) |
+| `excludeText` | array of string | no |  | Deprecated by Exa: words that results should not contain (approximate, word-level matching) |
+| `userLocation` | string | no |  | Two-letter ISO country code to localize results (e.g. 'US') |
+| `moderation` | boolean | no |  | Filter unsafe content |
+| `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
+| `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
+| `includeSummary` | boolean | no |  | Include an LLM-generated summary for each result |
+| `summaryQuery` | string | no |  | Guide each result's summary with this question (implies includeSummary) |
+| `includeHighlights` | boolean | no |  | Include key excerpts from each result |
+| `highlightsQuery` | string | no |  | Pick highlights relevant to this query (implies includeHighlights) |
+| `includeExtras` | boolean | no |  | Include embedded links and image links from each result |
+| `subpages` | number | no |  | Also crawl up to this many subpages per result (e.g. a company's about/pricing pages) |
+| `subpageTarget` | array of string | no |  | Keywords to pick which subpages to crawl (e.g. ['about', 'pricing']) |
+| `outputSchema` | object (JSON Schema) | no |  | JSON Schema for a synthesized answer grounded in the results. Root type 'text' or 'object' (max 10 properties, 2 nesting levels). Adds ~2s. |
+| `systemPrompt` | string | no |  | Extra instructions for the synthesized output |
+| `objective` | string | no |  | The broader goal behind the search, to improve relevance |
+| `additionalQueries` | array of string | no |  | Extra query variations (deep search types only) |
+
+## web_fetch
+
+Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.
+
+On by default: yes
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `urls` | array of string | yes |  | URLs to read (1-100) |
+| `includeText` | boolean | no | `true` | Return page text (default true) |
+| `textMaxCharacters` | number | no | `10000` | Max characters of text per URL (default 10000) |
+| `textVerbosity` | `compact` \| `standard` \| `full` | no |  | Text detail level (Exa default 'compact') |
+| `includeHtmlTags` | boolean | no | `false` |  |
+| `includeSections` | array of `header` \| `navigation` \| `banner` \| `body` \| `sidebar` \| `footer` \| `metadata` | no |  | Only keep these page sections (best effort), e.g. ['body'] |
+| `excludeSections` | array of `header` \| `navigation` \| `banner` \| `body` \| `sidebar` \| `footer` \| `metadata` | no |  | Drop these page sections (best effort), e.g. ['navigation', 'footer'] |
+| `includeHighlights` | boolean | no | `false` |  |
+| `highlightsQuery` | string | no |  | Pick highlights relevant to this query (implies includeHighlights) |
+| `includeSummary` | boolean | no | `false` | Include an LLM-generated summary per URL |
+| `summaryQuery` | string | no |  | Guide each summary with this question (implies includeSummary) |
+| `includeExtras` | boolean | no | `false` | Include embedded links and image links |
+| `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
+| `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
+| `snapshotAsOf` | string | no |  | Return the stored version as of this date (ISO 8601 or YYYY-MM-DD); never fetches live |
+| `subpages` | number | no |  | Also crawl up to this many subpages per URL |
+| `subpageTarget` | array of string | no |  | Keywords to pick which subpages to crawl (e.g. ['about', 'pricing']) |
+
+## answer_question
+
+Get a direct answer to a question with cited sources. Use instead of exa_search when you want a synthesized answer, not a list of results. Set outputSchema for a structured answer. For open-ended multi-step research use agent_run.
+
+On by default: yes
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `query` | string | yes |  | Question to answer |
+| `model` | `exa` \| `exa-pro` \| `exa-research` \| `exa-fast` | no |  | Answer model: 'exa-fast' (quickest), 'exa' (default), 'exa-pro' (stronger), 'exa-research' (most thorough) |
+| `systemPrompt` | string | no |  | Extra instructions for the answer (tone, format, focus) |
+| `outputSchema` | object (JSON Schema) | no |  | JSON Schema (Draft 7) for a structured answer instead of prose |
+| `userLocation` | string | no |  | Two-letter ISO country code to localize sources (e.g. 'US') |
+| `includeText` | boolean | no | `false` | Include each citation's page text |
+
+## find_similar
+
+Find pages similar to a reference URL. Use when you have an example page and want more like it. Requires a URL, not a query. Note: Exa marks /findSimilar deprecated; exa_search with a query describing the page is the long-term replacement.
+
+On by default: yes
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `url` | string | yes |  | URL to find similar pages for |
+| `numResults` | number | no | `10` |  |
+| `excludeSourceDomain` | boolean | no | `true` |  |
+| `includeDomains` | array of string | no |  | Only return results from these domains |
+| `excludeDomains` | array of string | no |  | Exclude results from these domains |
+| `startPublishedDate` | string | no |  | ISO date string |
+| `endPublishedDate` | string | no |  | ISO date string |
+| `includeText` | boolean | no | `false` |  |
+| `textMaxCharacters` | number | no | `1000` |  |
+| `includeHighlights` | boolean | no | `true` |  |
+| `highlightsQuery` | string | no |  | Pick highlights relevant to this query |
+| `includeSummary` | boolean | no | `false` | Include LLM-generated summary |
+| `summaryQuery` | string | no |  | Guide each summary with this question (implies includeSummary) |
+| `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
+| `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
+| `includeExtras` | boolean | no | `false` | Include embedded links and image links |
+
+## code_search
+
+Search for code examples, API usage, and programming patterns across GitHub, docs, and Stack Overflow. Use instead of exa_search for code-specific queries. Returns token-efficient snippets with source URLs. Does NOT search general web content.
+
+On by default: yes
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `query` | string | yes |  | Code search query - describe the pattern, API, or concept you need |
+| `tokensNum` | number \| `dynamic` | no | `"dynamic"` | Response size: 'dynamic' (auto) or 50-100000 tokens |
+
+## agent_run
+
+Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting.
+
+On by default: no
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `query` | string | no |  | The research task or question. Required unless runId is given. |
+| `runId` | string | no |  | Resume waiting on an existing run (from an earlier agent_run call) instead of starting a new one |
+| `effort` | `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `auto` \| `ultra` | no |  | How much work the agent does (Exa default 'auto'). Higher effort costs more. |
+| `systemPrompt` | string | no |  | Extra instructions for the agent's output or behavior |
+| `outputSchema` | object (JSON Schema) | no |  | JSON Schema for structured output (returned alongside the text answer) |
+| `previousRunId` | string | no |  | A completed run to continue from |
+| `maxCostDollars` | number | no |  | Cost cap in dollars ($1-$100; effort 'auto' and 'ultra' only; Exa defaults $5 auto, $20 ultra) |
+| `maxDurationSeconds` | number | no |  | Time cap in seconds (effort 'ultra' only) |
+| `waitSeconds` | number | no | `600` | How long to wait for completion before returning the run id (default 600). Call again with runId to keep waiting. |
+
+## monitors
+
+Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, list_runs, get_run (read a run's results here).
+
+On by default: no
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `create` \| `list` \| `get` \| `update` \| `delete` \| `list_runs` \| `get_run` | yes |  | Operation: create \| list \| get \| update \| delete \| list_runs \| get_run |
+| `monitorId` | string | no |  | Monitor id (get, update, delete, list_runs, get_run) |
+| `runId` | string | no |  | Run id (get_run) |
+| `name` | string | no |  | Display name (create, update) |
+| `query` | string | no |  | Search query the monitor runs (create; update) |
+| `numResults` | number | no |  | Results per run (default 10) |
+| `includeDomains` | array of string | no |  |  |
+| `excludeDomains` | array of string | no |  |  |
+| `period` | string | no |  | Run interval, e.g. '1h', '6h', '1d', '7d' (minimum 1h). Omit for no schedule. |
+| `outputSchema` | object (JSON Schema) | no |  | JSON Schema for a synthesized result per run |
+| `webhookUrl` | string | no |  | HTTPS URL that receives run results (create; required by Exa) |
+| `status` | `active` \| `paused` | no |  | Pause or resume (update) |
+| `limit` | number | no |  | Page size (list, list_runs) |
+| `cursor` | string | no |  | Pagination cursor from a previous list call |
+
+## websets
+
+Build Exa Websets: collections of companies, people, articles or papers that match your criteria, with optional extracted fields (enrichments). Creation runs in the background; use get to check progress and list_items to read results. Requires an Exa plan with Websets API access.
+
+On by default: no
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `create` \| `list` \| `get` \| `list_items` | yes |  | Operation: create \| list \| get \| list_items |
+| `websetId` | string | no |  | Webset id or externalId (get, list_items) |
+| `title` | string | no |  | Webset title (create) |
+| `query` | string | no |  | What to find, e.g. 'AI security startups in the US' (create) |
+| `count` | number | no |  | How many items to find (create, default 10) |
+| `entityType` | `company` \| `person` \| `article` \| `research_paper` \| `custom` | no |  | Kind of item to find (create) |
+| `entityDescription` | string | no |  | Description of the item kind when entityType is 'custom' |
+| `criteria` | array of string | no |  | Up to 5 conditions every item must satisfy (create) |
+| `enrichments` | array of objects | no |  | Extra fields to extract for each item (create) |
+| `externalId` | string | no |  | Your own id for the Webset (create) |
+| `limit` | number | no |  | Page size (list, list_items) |
+| `cursor` | string | no |  | Pagination cursor from a previous list call |
+
+## Removed tool names
+
+These names were removed in 0.5.0. Passing them to `--tools` enables the replacement and logs a warning.
+
+| Removed | Replacement |
+|---|---|
+| `research_paper_search` | `exa_search` |
+| `twitter_search` | `exa_search` |
+| `company_research` | `exa_search` |
+| `competitor_finder` | `exa_search` |
+| `crawling` | `web_fetch` |
+| `batch_extract` | `web_fetch` |
+| `deep_research` | `agent_run` |

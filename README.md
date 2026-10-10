@@ -1,258 +1,158 @@
 # Exa MCP Server
 
-A Model Context Protocol (MCP) server that provides Exa AI search capabilities to Claude and other MCP-compatible clients. Search the web, academic papers, Twitter, and more with real-time results.
+A Model Context Protocol (MCP) server that gives Claude and other MCP clients Exa AI's search, page fetching, cited answers, code search, research agents, scheduled monitors and Websets.
 
 ## Features
 
-- Web Search - General web search with live crawling
-- Research Papers - Academic paper search from scholarly sources
-- Twitter/X Search - Search tweets and social media content
-- Company Research - Targeted company information gathering
-- URL Crawling - Extract content from specific URLs
-- Competitor Analysis - Find competitors for any business
-- Progress Tracking - Real-time progress notifications for long-running searches
-- Request ID Correlation - Track requests with client-provided IDs
-- Configurable Tools - Enable/disable specific search capabilities
-- Privacy-First - Sensitive data redaction in logs
-- Resilient - Automatic retries with exponential backoff
+- **Web search** with filters for research papers, companies, people, news, posts on X and competitors, plus synthesized answers with field-level citations (`outputSchema`)
+- **Page fetching** for up to 100 URLs per call, with per-URL failure reporting
+- **Cited answers** to direct questions, as prose or structured JSON
+- **Code search** across GitHub, docs and Stack Overflow
+- **Research agent runs** (Exa Agent API) for multi-step research with a cost cap
+- **Monitors**: searches that run on a schedule and post results to a webhook
+- **Websets**: collections of companies, people or papers matching your criteria, with extracted fields
+- Freshness control (`maxAgeHours`), estimated cost on every response, retries with backoff, response caching, log redaction
 
 ## Quick Start
 
-### 1. Get an Exa API Key
+### 1. Get an Exa API key
 
-Sign up at [exa.ai](https://exa.ai/) and get your API key.
+Sign up at [exa.ai](https://exa.ai/) and create an API key.
 
-### 2. Installation
-
-```bash
-npm install -g exa-mcp-server
-```
-
-### 3. Configuration
-
-Create a `.env` file in your project directory:
-
-```bash
-cp .env.example .env
-# Edit .env and add your EXA_API_KEY
-```
-
-### 4. Usage with Claude Desktop
-
-Add to your Claude Desktop configuration file:
-
-```json
-{
-  "mcpServers": {
-    "exa-search": {
-      "command": "exa-mcp-server",
-      "args": ["--tools", "exa_search,research_paper_search"],
-      "env": {
-        "EXA_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
-```
-
-## Available Tools
-
-| Tool | ID | Description | Default |
-|------|----|--------------|---------|
-| Web Search | `exa_search` | General web search with live crawling | Yes |
-| Research Papers | `research_paper_search` | Academic paper search | Yes |
-| Twitter Search | `twitter_search` | Search tweets and social media | Yes |
-| Company Research | `company_research` | Company information gathering | Yes |
-| URL Crawling | `crawling` | Extract content from URLs | Yes |
-| Competitor Finder | `competitor_finder` | Find business competitors | No |
-| Answer Question | `answer_question` | Get direct answers with citations | Yes |
-| Find Similar | `find_similar` | Find pages similar to a URL | Yes |
-| Batch Extract | `batch_extract` | Extract content from multiple URLs | Yes |
-| Deep Research | `deep_research` | Complex multi-step research with structured output | No |
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `EXA_API_KEY` | Yes | - | Your Exa AI API key |
-| `LOG_LEVEL` | No | `DEBUG` (dev) / `ERROR` (prod) | Logging level (ERROR, WARN, INFO, DEBUG) |
-| `NODE_ENV` | No | `development` | Environment mode |
-| `REDACT_LOGS` | No | `true` | Redact sensitive data in logs |
-
-### Tool Selection
-
-```bash
-# Enable specific tools
-exa-mcp-server --tools exa_search,research_paper_search
-
-# List all available tools
-exa-mcp-server --list-tools
-
-# Use all default tools (no --tools flag)
-exa-mcp-server
-```
-
-## Development
-
-### Setup
+### 2. Build
 
 ```bash
 git clone https://github.com/quanticsoul4772/exa-mcp-server.git
 cd exa-mcp-server
 npm install
-cp .env.example .env
-# Edit .env with your API key
+npm run build
 ```
 
-### Available Scripts
+### 3. Add to your MCP client
+
+Claude Code:
 
 ```bash
-npm run build          # Build TypeScript to JavaScript
-npm run watch         # Watch mode for development
-npm test              # Run tests
-npm run test:coverage # Run tests with coverage
-npm run lint          # Check code quality
-npm run typecheck     # Check TypeScript types
-npm run inspector     # Test with MCP Inspector
+claude mcp add exa -s user -e 'EXA_API_KEY=${EXA_API_KEY}' -- node /path/to/exa-mcp-server/build/index.js
 ```
 
-### Testing
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "exa": {
+      "command": "node",
+      "args": ["/path/to/exa-mcp-server/build/index.js"],
+      "env": { "EXA_API_KEY": "your_api_key_here" }
+    }
+  }
+}
+```
+
+## Tools
+
+| Tool | What it does | Exa endpoint | On by default |
+|------|--------------|--------------|---------------|
+| `exa_search` | Web search with filters, subpages and optional synthesized output | `POST /search` | Yes |
+| `web_fetch` | Read 1-100 known URLs; reports failed URLs | `POST /contents` | Yes |
+| `answer_question` | Direct answer with citations; optional structured answer | `POST /answer` | Yes |
+| `find_similar` | Pages similar to a URL (Exa marks this endpoint deprecated) | `POST /findSimilar` | Yes |
+| `code_search` | Code examples and API usage | `POST /context` | Yes |
+| `agent_run` | Multi-step research agent; waits, or returns a run id to resume | `/agent/runs` | No |
+| `monitors` | Create, list, get, update, delete monitors; read their runs | `/monitors` | No |
+| `websets` | Create and list Websets; read their items (needs Websets API access on your plan) | `/websets/v0/websets` | No |
+
+`agent_run`, `monitors` and `websets` are off by default because they cost more or create resources on your Exa account. Enable them with `--tools`.
+
+### Specialized searches with `exa_search`
+
+Version 0.5.0 folded the separate specialized tools into `exa_search` filters:
+
+| Old tool | Use instead |
+|----------|-------------|
+| `research_paper_search` | `exa_search` with `category: "publication"` |
+| `company_research` | `exa_search` with `category: "company"`, optionally `subpages` and `subpageTarget` |
+| `twitter_search` | `exa_search` with `includeDomains: ["x.com", "twitter.com"]` |
+| `competitor_finder` | `exa_search` describing the business, with `excludeDomains: [its domain]` |
+| `crawling`, `batch_extract` | `web_fetch` |
+| `deep_research` | `agent_run` (Exa retired the Research API) |
+
+Old names in `--tools` are mapped to their replacements, with a warning in the log.
+
+### Examples
+
+```jsonc
+// Research papers from the last year, with highlights
+{ "tool": "exa_search", "arguments": { "query": "load testing LLM inference", "category": "publication", "startPublishedDate": "2025-10-01", "includeHighlights": true } }
+
+// Structured, cited answer from search results
+{ "tool": "exa_search", "arguments": { "query": "Exa AI headquarters", "outputSchema": { "type": "object", "properties": { "city": { "type": "string" } } } } }
+
+// Read several pages, forcing a fresh crawl
+{ "tool": "web_fetch", "arguments": { "urls": ["https://example.com/a", "https://example.com/b"], "maxAgeHours": 0, "excludeSections": ["navigation", "footer"] } }
+
+// Research agent with a $2 cap; call again with runId if it is still running
+{ "tool": "agent_run", "arguments": { "query": "List open-source load testing tools with their licenses", "effort": "auto", "maxCostDollars": 2 } }
+
+// Daily monitor posting new results to a webhook
+{ "tool": "monitors", "arguments": { "action": "create", "query": "performance engineer contract roles", "period": "1d", "webhookUrl": "https://your.server/hook" } }
+```
+
+### Tool selection
 
 ```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Test with MCP Inspector
-npm run inspector
+exa-mcp-server --list-tools                          # list all tools
+exa-mcp-server --tools exa_search,web_fetch,agent_run  # enable only these
+exa-mcp-server                                        # tools on by default
 ```
 
-## Architecture
+## Configuration
 
-### Core Components
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `EXA_API_KEY` | Yes | - | Exa API key |
+| `EXA_BASE_URL` | No | `https://api.exa.ai` | API base URL |
+| `EXA_TIMEOUT` | No | `25000` | Request timeout in ms (1000-60000) |
+| `EXA_RETRIES` | No | `3` | Retries for network errors and 5xx responses |
+| `DEFAULT_NUM_RESULTS` | No | `3` | Results per search when `numResults` is omitted |
+| `DEFAULT_MAX_CHARACTERS` | No | `3000` | Text characters per search result |
+| `CACHE_ENABLED` | No | `true` | Cache identical requests (skipped when `maxAgeHours` is 0) |
+| `CACHE_MAX_SIZE` | No | `100` | Max cached responses |
+| `CACHE_TTL_MINUTES` | No | `5` | Cache lifetime |
+| `LOG_LEVEL` | No | `ERROR` (production) / `DEBUG` (development) | ERROR, WARN, INFO, DEBUG |
+| `NODE_ENV` | No | `development` | Environment mode |
+| `REDACT_LOGS` | No | `true` | Redact sensitive data in logs |
+| `EXA_USAGE_CSV` | No | unset | If set, append one CSV line per tool call to this file |
 
-- **Entry Point** (`src/index.ts`) - MCP server initialization and CLI
-- **Tool System** (`src/tools/`) - Plugin-based tool architecture
-- **Utilities** (`src/utils/`) - Shared utilities for HTTP, logging, formatting
-- **Types** (`src/types.ts`) - TypeScript interfaces for API data
+## Development
 
-### Key Features
-
-- **Runtime Validation** - All inputs validated with Zod schemas
-- **Structured Logging** - Multi-level logging with sensitive data redaction
-- **Retry Logic** - Exponential backoff for failed API requests
-- **Type Safety** - Full TypeScript support with strict typing
-- **Extensible** - Easy to add new tools and search capabilities
-
-## Examples
-
-### Web Search
-```typescript
-// Search the web for recent AI developments
-{
-  "tool": "exa_search",
-  "arguments": {
-    "query": "latest AI developments 2024",
-    "numResults": 5
-  }
-}
+```bash
+npm run build          # compile TypeScript
+npm test               # run tests
+npm run lint           # ESLint
+npm run typecheck      # tsc --noEmit
+npm run inspector      # try the server in MCP Inspector
 ```
 
-### Research Papers
-```typescript
-// Find academic papers on machine learning
-{
-  "tool": "research_paper_search",
-  "arguments": {
-    "query": "transformer architecture machine learning",
-    "numResults": 3
-  }
-}
-```
+Source layout:
 
-### Company Research
-```typescript
-// Research a specific company
-{
-  "tool": "company_research",
-  "arguments": {
-    "query": "openai.com"
-  }
-}
-```
+- `src/index.ts`: entry point, CLI, tool registration
+- `src/tools/`: one file per tool; `index.ts` holds the registry and old-name aliases
+- `src/utils/`: HTTP client, formatter, cache, rate limiter, logging
+- `src/types.ts`: Exa API request and response types
+- `src/version.ts`: server version (a test keeps it equal to `package.json`)
 
 ## Troubleshooting
 
-### Common Issues
+- **`EXA_API_KEY environment variable is not set`**: set it in the environment or a `.env` file.
+- **HTTP 401 on `websets`**: your Exa plan does not include the Websets API.
+- **`agent_run` returns "still running"**: call it again with the returned `runId`.
+- **Monitor create rejects the webhook**: the URL must be public HTTPS, not localhost, `.local` or a private IP.
+- **Debug logging**: `LOG_LEVEL=DEBUG REDACT_LOGS=false`.
 
-**API Key Error**
-```
-Error: EXA_API_KEY environment variable is not set
-```
-- Solution: Add your Exa API key to the `.env` file or environment variables
-
-**Tool Not Found**
-```
-Tool 'tool_name' not found
-```
-- Solution: Check available tools with `--list-tools` or enable the tool with `--tools`
-
-**Network Timeouts**
-- The server includes automatic retries with exponential backoff
-- Check your internet connection and API key validity
-
-### Debug Mode
-
-Enable debug logging to troubleshoot issues:
-
-```bash
-export LOG_LEVEL=DEBUG
-export REDACT_LOGS=false
-exa-mcp-server
-```
-
-## Project Structure
-
-```
-exa-mcp-server/
-├── src/                    # Source code
-│   ├── config/            # Configuration management
-│   ├── tools/             # Tool implementations
-│   └── utils/             # Utility functions
-├── docs/                   # Documentation
-│   ├── testing/           # Test plans and reports
-│   └── development/       # Development guides
-├── config/                 # Configuration files
-├── examples/              # Usage examples
-└── __mocks__/             # Test mocks
-```
-
-## Documentation
-
-- [API Reference](docs/API.md) - Detailed API documentation
-- [Tool Reference](docs/TOOL_REFERENCE.md) - Complete tool documentation
-- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Developer Guide](docs/development/DEVELOPER_GUIDE.md) - Development setup and practices
-- [Testing Guide](docs/testing/TESTING.md) - Testing strategies and coverage
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and add tests
-4. Run tests: `npm test`
-5. Submit a pull request
+More: [Tool Reference](docs/TOOL_REFERENCE.md), [Exa API docs](https://exa.ai/docs).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-- 📧 Issues: [GitHub Issues](https://github.com/quanticsoul4772/exa-mcp-server/issues)
-- 📖 Documentation: [Exa API Docs](https://docs.exa.ai/)
-- 💬 Discussions: [GitHub Discussions](https://github.com/quanticsoul4772/exa-mcp-server/discussions)
+MIT. See [LICENSE](LICENSE).

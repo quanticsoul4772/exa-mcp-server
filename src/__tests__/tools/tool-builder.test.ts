@@ -64,7 +64,7 @@ jest.mock('../../tools/progress-tracker.js', () => ({
   }))
 }));
 
-import { createTool, createSearchTool, createCrawlTool } from '../../tools/tool-builder.js';
+import { createTool, createSearchTool, requestsFreshContent } from '../../tools/tool-builder.js';
 import { getSharedExaClient } from '../../utils/exaClient.js';
 import { getGlobalCache } from '../../utils/cache.js';
 
@@ -255,44 +255,16 @@ describe('Tool Builder', () => {
     });
   });
 
-  describe('createCrawlTool', () => {
-    it('should create a crawl tool with correct structure', () => {
-      const schema = z.object({ url: z.string().url() });
-
-      const tool = createCrawlTool(
-        'test_crawl',
-        'Test crawl tool',
-        schema,
-        true,
-        (args) => ({ urls: [args.url] })
-      );
-
-      expect(tool.name).toBe('test_crawl');
-      expect(tool.description).toBe('Test crawl tool');
-      expect(tool.handler).toBeDefined();
+  describe('requestsFreshContent', () => {
+    it('detects maxAgeHours 0 at the top level and under contents', () => {
+      expect(requestsFreshContent({ urls: ['https://a.com'], maxAgeHours: 0 })).toBe(true);
+      expect(requestsFreshContent({ query: 'q', contents: { maxAgeHours: 0 } })).toBe(true);
     });
 
-    it('should call /contents endpoint', async () => {
-      const mockPost = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
-        data: { results: [{ url: 'https://example.com', text: 'Crawled content' }] }
-      });
-      (getSharedExaClient as jest.MockedFunction<typeof getSharedExaClient>).mockReturnValue({
-        post: mockPost
-      } as any);
-
-      const schema = z.object({ url: z.string().url() });
-
-      const tool = createCrawlTool(
-        'test_crawl',
-        'Test crawl',
-        schema,
-        true,
-        (args) => ({ urls: [args.url] })
-      );
-
-      await tool.handler({ url: 'https://example.com' }, {});
-
-      expect(mockPost).toHaveBeenCalledWith('/contents', expect.objectContaining({ urls: ['https://example.com'] }));
+    it('is false for cached or unspecified freshness', () => {
+      expect(requestsFreshContent({ query: 'q', contents: { maxAgeHours: 24 } })).toBe(false);
+      expect(requestsFreshContent({ query: 'q' })).toBe(false);
+      expect(requestsFreshContent(null)).toBe(false);
     });
   });
 
