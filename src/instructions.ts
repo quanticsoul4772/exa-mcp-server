@@ -8,6 +8,6 @@ export const SERVER_INSTRUCTIONS = `Exa web tools. Choosing a tool:
 - answer_question: one direct answer with citations.
 - code_search: code examples and API usage.
 - find_similar: pages like a given URL.
-- agent_run (if enabled): multi-step research; slow and costs dollars per run. Set effort, and maxCostDollars for effort auto/ultra.
+- agent_run (if enabled): multi-step research; slow and costs dollars per run. Set effort, and maxCostDollars for effort auto/ultra. action list/cancel/stop manage runs.
 - monitors, websets (if enabled): create resources on the user's Exa account; monitors can delete.
 Every response ends with Exa's estimated cost.`;

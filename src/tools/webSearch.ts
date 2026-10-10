@@ -40,6 +40,8 @@ const webSearchSchema = z.object({
   ...freshnessFields,
   includeSummary: z.boolean().optional()
     .describe("Include an LLM-generated summary for each result"),
+  summarySchema: z.record(z.any()).optional()
+    .describe("JSON Schema for a structured summary per result (implies includeSummary)"),
   summaryQuery: z.string().optional()
     .describe("Guide each result's summary with this question (implies includeSummary)"),
   includeHighlights: z.boolean().optional()
@@ -77,7 +79,7 @@ export const webSearchTool: ToolRegistry = { ...createSearchTool(
   true,
   (args) => {
     const config = getConfig();
-    const summary = summaryOption(args.includeSummary, args.summaryQuery);
+    const summary = summaryOption(args.includeSummary, args.summaryQuery, args.summarySchema);
     const wantsText = args.includePageText || args.textMaxCharacters !== undefined;
     // Default to highlights (query-relevant excerpts) rather than page text:
     // full text per result is large and rarely needed for discovery

@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.8.0] - 2026-10-10
+
+### Added
+- Company, person and publication entities are rendered in `exa_search`, `find_similar` and `web_fetch` output: company employees, headquarters, funding total and latest round, revenue, monthly web visits and description; a person's location, roles with dates, and education. They were returned by Exa and dropped.
+- `agent_run` `action`: `list` (recent runs with status, cost and query), `cancel` (end a run now), `stop` (end an `ultra` run gracefully, keeping partial output). `run` remains the default.
+- `agent_run` inputs: `dataSources` (Exa Connect providers), `inputData` and `inputExclusion` records, `metadata`.
+- `monitors` `trigger`: run a monitor now, even if paused.
+- `summarySchema` on `exa_search`, `web_fetch` and `find_similar`: a JSON Schema for a structured summary per result.
+- `web_fetch` notes when a page's text was cut at the character limit, and says to raise `textMaxCharacters`.
+
+### Changed
+- `web_fetch` `relevantTo` fetches up to 200,000 characters of a single page to choose passages from (was 50,000); the 500,000 total across pages is unchanged.
+- `agent_run` is marked destructive, since `cancel` and `stop` end a run irreversibly.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added

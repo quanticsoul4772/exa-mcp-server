@@ -160,14 +160,28 @@ export interface RelevantChunk {
   score: number;
 }
 
+/**
+ * Structured data Exa attaches to company, person and publication results
+ */
+export interface ExaEntity {
+  id: string;
+  type: 'company' | 'person' | 'publication' | string;
+  version?: number;
+  properties: Record<string, unknown>;
+}
+
 export interface ExaSearchResult {
   id: string;
+  /** Structured company/person/publication data */
+  entities?: ExaEntity[];
   /** Voyage relevance score, when the results were reranked */
   rerankScore?: number;
   /** Most relevant passages, when web_fetch was called with relevantTo */
   relevantChunks?: RelevantChunk[];
   /** Number of chunks the page was split into, with relevantTo */
   totalChunks?: number;
+  /** Set when the page text was cut at this many characters */
+  truncatedAt?: number;
   title?: string;
   url: string;
   publishedDate?: string;

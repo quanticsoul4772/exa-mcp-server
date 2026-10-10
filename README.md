@@ -103,6 +103,13 @@ Old names in `--tools` are mapped to their replacements, with a warning in the l
 // Research agent with a $2 cap; call again with runId if it is still running
 { "tool": "agent_run", "arguments": { "query": "List open-source load testing tools with their licenses", "effort": "auto", "maxCostDollars": 2 } }
 
+// Companies with structured data (employees, HQ, funding) rendered per result
+{ "tool": "exa_search", "arguments": { "query": "AI search API startups", "category": "company", "numResults": 5 } }
+
+// List recent agent runs, or cancel one
+{ "tool": "agent_run", "arguments": { "action": "list" } }
+{ "tool": "agent_run", "arguments": { "action": "cancel", "runId": "agent_run_..." } }
+
 // Daily monitor posting new results to a webhook
 { "tool": "monitors", "arguments": { "action": "create", "query": "performance engineer contract roles", "period": "1d", "webhookUrl": "https://your.server/hook" } }
 ```

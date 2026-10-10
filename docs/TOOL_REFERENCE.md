@@ -1,6 +1,6 @@
 # Tool Reference
 
-Generated from the tool schemas in `src/tools/` (version 0.7.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
+Generated from the tool schemas in `src/tools/` (version 0.8.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
 
 ## Contents
 
@@ -39,6 +39,7 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 | `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
 | `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
 | `includeSummary` | boolean | no |  | Include an LLM-generated summary for each result |
+| `summarySchema` | object (JSON Schema) | no |  | JSON Schema for a structured summary per result (implies includeSummary) |
 | `summaryQuery` | string | no |  | Guide each result's summary with this question (implies includeSummary) |
 | `includeHighlights` | boolean | no |  | Include key excerpts from each result (default: on unless page text is requested) |
 | `includePageText` | boolean | no |  | Include each result's page text, up to DEFAULT_MAX_CHARACTERS (default 3000) characters. Off by default: results carry highlights instead |
@@ -77,6 +78,7 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 | `includeHighlights` | boolean | no | `false` |  |
 | `highlightsQuery` | string | no |  | Pick highlights relevant to this query (implies includeHighlights) |
 | `includeSummary` | boolean | no | `false` | Include an LLM-generated summary per URL |
+| `summarySchema` | object (JSON Schema) | no |  | JSON Schema for a structured summary per result (implies includeSummary) |
 | `summaryQuery` | string | no |  | Guide each summary with this question (implies includeSummary) |
 | `includeExtras` | boolean | no | `false` | Include embedded links and image links |
 | `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
@@ -124,6 +126,7 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 | `includeHighlights` | boolean | no | `true` |  |
 | `highlightsQuery` | string | no |  | Pick highlights relevant to this query |
 | `includeSummary` | boolean | no | `false` | Include LLM-generated summary |
+| `summarySchema` | object (JSON Schema) | no |  | JSON Schema for a structured summary per result (implies includeSummary) |
 | `summaryQuery` | string | no |  | Guide each summary with this question (implies includeSummary) |
 | `maxAgeHours` | number | no |  | Content freshness: 0 = always fetch fresh, -1 = cache only, 1-720 = max cache age in hours. Omit to use cache and fetch live only when nothing is cached. |
 | `livecrawlTimeout` | number | no |  | Live crawl timeout in milliseconds (1-90000, Exa default 10000) |
@@ -148,12 +151,19 @@ On by default: yes. Hints: readOnly: true, openWorld: true.
 
 Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.
 
-On by default: no. Hints: readOnly: false, destructive: false, idempotent: false, openWorld: true.
+On by default: no. Hints: readOnly: false, destructive: true, idempotent: false, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `query` | string | no |  | The research task or question. Required unless runId is given. |
-| `runId` | string | no |  | Resume waiting on an existing run (from an earlier agent_run call) instead of starting a new one |
+| `action` | `run` \| `cancel` \| `stop` \| `list` | no | `"run"` | run (default): start a run, or resume waiting on runId. cancel: end runId now. stop: end an 'ultra' runId gracefully, keeping partial output. list: recent runs |
+| `query` | string | no |  | The research task or question. Required to start a run. |
+| `runId` | string | no |  | An existing run: resume waiting on it (action run), or cancel/stop it |
+| `dataSources` | array of `fiber` \| `financial_datasets` \| `similarweb` \| `baselayer` \| `affiliate` \| `particle` \| `jinko` \| `polymarket` \| `macrobond` | no |  | Extra data providers for the agent to query (Exa Connect), e.g. ['similarweb', 'financial_datasets'] |
+| `inputData` | array of record | no |  | Records for the agent to work from, e.g. a list of companies to enrich |
+| `inputExclusion` | array of record | no |  | Records the agent must leave out of its results, e.g. companies already known |
+| `metadata` | object (JSON Schema) | no |  | Your own key/value labels stored with the run |
+| `limit` | number | no |  | With action list: runs per page |
+| `cursor` | string | no |  | With action list: cursor from the previous page |
 | `effort` | `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `auto` \| `ultra` | no |  | How much work the agent does (Exa default 'auto'). Higher effort costs more. |
 | `systemPrompt` | string | no |  | Extra instructions for the agent's output or behavior |
 | `outputSchema` | object (JSON Schema) | no |  | JSON Schema for structured output (returned alongside the text answer) |
@@ -166,14 +176,14 @@ On by default: no. Hints: readOnly: false, destructive: false, idempotent: false
 
 **Exa Monitors**
 
-Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, list_runs, get_run (read a run's results here).
+Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, trigger (run now, even if paused), list_runs, get_run (read a run's results here).
 
 On by default: no. Hints: readOnly: false, destructive: true, idempotent: false, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `action` | `create` \| `list` \| `get` \| `update` \| `delete` \| `list_runs` \| `get_run` | yes |  | Operation: create \| list \| get \| update \| delete \| list_runs \| get_run |
-| `monitorId` | string | no |  | Monitor id (get, update, delete, list_runs, get_run) |
+| `action` | `create` \| `list` \| `get` \| `update` \| `delete` \| `trigger` \| `list_runs` \| `get_run` | yes |  | Operation: create \| list \| get \| update \| delete \| trigger \| list_runs \| get_run |
+| `monitorId` | string | no |  | Monitor id (get, update, delete, trigger, list_runs, get_run) |
 | `runId` | string | no |  | Run id (get_run) |
 | `name` | string | no |  | Display name (create, update) |
 | `query` | string | no |  | Search query the monitor runs (create; update) |

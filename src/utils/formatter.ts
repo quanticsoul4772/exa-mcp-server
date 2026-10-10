@@ -2,6 +2,7 @@ import {
   ExaContentStatus,
   ExaCostDollars,
   ExaCrawlResponse,
+  ExaEntity,
   ExaGrounding,
   ExaSearchResponse,
   ExaSearchResult,
@@ -67,6 +68,8 @@ export class ResponseFormatter {
     if (result.author) {
       lines.push(`   Author: ${result.author}`);
     }
+
+    result.entities?.forEach(e => lines.push(...this.formatEntity(e, '   ')));
 
     if (result.summary) {
       lines.push(`   Summary: ${this.cleanSummary(result.summary)}`);
@@ -172,8 +175,12 @@ export class ResponseFormatter {
     results.forEach((result, idx) => {
       lines.push(`## ${idx + 1}. ${result.title || 'Untitled'}`);
       lines.push(`URL: ${result.url}`);
+      if (result.truncatedAt !== undefined) {
+        lines.push(`Note: page text was cut at ${result.truncatedAt} characters${result.relevantChunks ? '; passages were chosen from that part only' : ''}. Set textMaxCharacters higher to read more.`);
+      }
       if (result.author) lines.push(`Author: ${result.author}`);
       if (result.publishedDate) lines.push(`Published: ${this.formatDate(result.publishedDate)}`);
+      result.entities?.forEach(e => lines.push(...this.formatEntity(e, '')));
       if (result.summary) lines.push('', `**Summary:** ${this.cleanSummary(result.summary)}`);
       if (result.highlights?.length) {
         lines.push('', '**Highlights:**');
@@ -207,6 +214,61 @@ export class ResponseFormatter {
     const voyage = this.formatVoyageUsage(response.voyage);
     if (voyage) lines.push(voyage);
     return lines.join('\n');
+  }
+
+  /**
+   * Render an entity's structured fields: company facts, a person's roles
+   * and education, or the scalar fields of any other entity type
+   */
+  static formatEntity(entity: ExaEntity, indent: string): string[] {
+    const p = entity.properties ?? {};
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+    const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
+    const obj = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {});
+    const lines: string[] = [];
+    const add = (label: string, value: string | number | undefined) => {
+      if (value !== undefined && value !== '') lines.push(`${indent}  ${label}: ${value}`);
+    };
+
+    if (entity.type === 'company') {
+      lines.push(`${indent}Company: ${str(p.name) ?? 'unknown'}`);
+      add('Founded', num(p.foundedYear));
+      add('Employees', num(obj(p.workforce).total));
+      const hq = obj(p.headquarters);
+      add('Headquarters', [str(hq.city), str(hq.country)].filter(Boolean).join(', ') || str(hq.address));
+      const fin = obj(p.financials);
+      const total = num(fin.fundingTotal);
+      add('Funding total', total !== undefined ? `$${total.toLocaleString('en-US')}` : undefined);
+      const round = obj(fin.fundingLatestRound);
+      const amount = num(round.amount);
+      add('Latest round', str(round.name) ? `${str(round.name)}${str(round.date) ? ` (${str(round.date)})` : ''}${amount !== undefined ? `, $${amount.toLocaleString('en-US')}` : ''}` : undefined);
+      const revenue = num(fin.revenueAnnual);
+      add('Annual revenue', revenue !== undefined ? `$${revenue.toLocaleString('en-US')}` : undefined);
+      const visits = num(obj(p.webTraffic).visitsMonthly);
+      add('Monthly web visits', visits !== undefined ? visits.toLocaleString('en-US') : undefined);
+      add('Description', str(p.description)?.replace(/\s+/g, ' '));
+      return lines;
+    }
+
+    if (entity.type === 'person') {
+      lines.push(`${indent}Person: ${str(p.name) ?? 'unknown'}`);
+      add('Location', str(p.location));
+      const jobs = Array.isArray(p.workHistory) ? p.workHistory.map(obj) : [];
+      jobs.forEach(j => {
+        const dates = obj(j.dates);
+        const span = `${str(dates.from) ?? '?'} to ${str(dates.to) ?? 'present'}`;
+        add('Role', `${str(j.title) ?? 'unknown role'} at ${str(obj(j.company).name) ?? 'unknown'} (${span})`);
+      });
+      const schools = Array.isArray(p.educationHistory) ? p.educationHistory.map(obj) : [];
+      schools.forEach(s => add('Education', [str(s.degree), str(obj(s.institution).name) ?? str(s.institution)].filter(Boolean).join(', ')));
+      return lines;
+    }
+
+    lines.push(`${indent}${entity.type.charAt(0).toUpperCase()}${entity.type.slice(1)}:`);
+    Object.entries(p).forEach(([k, v]) => {
+      if (typeof v === 'string' || typeof v === 'number') add(k, typeof v === 'string' ? v.replace(/\s+/g, ' ') : v);
+    });
+    return lines;
   }
 
   /**

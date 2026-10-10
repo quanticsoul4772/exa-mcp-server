@@ -29,6 +29,8 @@ const findSimilarSchema = z.object({
   highlightsQuery: z.string().optional()
     .describe("Pick highlights relevant to this query"),
   includeSummary: z.boolean().optional().default(false).describe("Include LLM-generated summary"),
+  summarySchema: z.record(z.any()).optional()
+    .describe("JSON Schema for a structured summary per result (implies includeSummary)"),
   summaryQuery: z.string().optional()
     .describe("Guide each summary with this question (implies includeSummary)"),
   ...freshnessFields,
@@ -43,7 +45,7 @@ export const findSimilarTool = createTool({
   enabled: true,
   endpoint: '/findSimilar',
   createRequest: (args): ExaFindSimilarRequest => {
-    const summary = summaryOption(args.includeSummary, args.summaryQuery);
+    const summary = summaryOption(args.includeSummary, args.summaryQuery, args.summarySchema);
     const highlights = highlightsOption(args.includeHighlights, args.highlightsQuery);
     return {
       url: args.url,

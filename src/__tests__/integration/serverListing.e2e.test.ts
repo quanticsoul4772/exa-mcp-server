@@ -38,7 +38,7 @@ describe('what MCP clients see', () => {
     for (const name of ['exa_search', 'web_fetch', 'answer_question', 'find_similar', 'code_search']) {
       expect(byName[name].annotations).toEqual({ readOnlyHint: true, openWorldHint: true });
     }
-    expect(byName.agent_run.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
+    expect(byName.agent_run.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false });
     expect(byName.monitors.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(byName.websets.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
   });

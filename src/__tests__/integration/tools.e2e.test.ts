@@ -446,7 +446,7 @@ describe('Tool E2E Tests', () => {
       expect(text).not.toContain('Paragraph 0');
       expect(text).toContain('[relevance 0.900]');
       const history = e2e.getRequestHistory();
-      expect(history.find(r => r.path === '/contents')!.body.text.maxCharacters).toBe(50000);
+      expect(history.find(r => r.path === '/contents')!.body.text.maxCharacters).toBe(200000);
       expect(history.find(r => r.path === '/rerank')!.body.documents).toHaveLength(6);
     });
 
@@ -469,12 +469,128 @@ describe('Tool E2E Tests', () => {
       expect(result.content[0].text).toContain('VOYAGE_API_KEY is not set');
     });
 
+    it('says when a page was cut at the text limit', async () => {
+      e2e.mockSuccessfulContents([
+        { id: 'https://long.com', url: 'https://long.com', title: 'Long', text: 'y'.repeat(10000) },
+        { id: 'https://short.com', url: 'https://short.com', title: 'Short', text: 'short page' }
+      ]);
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({ urls: ['https://long.com', 'https://short.com'] }, {});
+      const text = result.content[0].text;
+      expect(text).toContain('Note: page text was cut at 10000 characters. Set textMaxCharacters higher to read more.');
+      expect(text.match(/Note: page text was cut/g)).toHaveLength(1);
+    });
+
     it('rejects relevantTo without page text', async () => {
       e2e.mockSuccessfulContents([{ id: 'https://p.com', url: 'https://p.com', title: 'Page' }]);
       const { webFetchTool } = await import('../../tools/webFetch.js');
       const result = await webFetchTool.handler({ urls: ['https://p.com'], relevantTo: 'q', includeText: false }, {});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('relevantTo needs page text');
+    });
+  });
+
+  describe('Tier 3 Exa features', () => {
+    it('renders company and person entities', async () => {
+      e2e.mockSuccessfulSearch([
+        {
+          id: 'c', title: 'Exa', url: 'https://exa.ai',
+          entities: [{ id: 'org', type: 'company', version: 1, properties: {
+            name: 'Exa', foundedYear: 2021, workforce: { total: 226 },
+            headquarters: { city: 'San Francisco', country: 'United States' },
+            financials: { fundingTotal: 362125000, fundingLatestRound: { name: 'Series C', date: '2026-05-01', amount: 250000000 } },
+            webTraffic: { visitsMonthly: 930827 }, description: 'Search\nAPI'
+          } }]
+        },
+        {
+          id: 'p', title: 'Will Bryk', url: 'https://exa.ai/p',
+          entities: [{ id: 'person', type: 'person', version: 1, properties: {
+            name: 'Will Bryk', location: 'San Francisco',
+            workHistory: [{ title: 'CEO', dates: { from: '2021-01-01', to: null }, company: { name: 'Exa' } }],
+            educationHistory: []
+          } }]
+        }
+      ]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const text = (await webSearchTool.handler({ query: 'exa', category: 'company' }, {})).content[0].text;
+      expect(text).toContain('Company: Exa');
+      expect(text).toContain('Employees: 226');
+      expect(text).toContain('Headquarters: San Francisco, United States');
+      expect(text).toContain('Funding total: $362,125,000');
+      expect(text).toContain('Latest round: Series C (2026-05-01), $250,000,000');
+      expect(text).toContain('Description: Search API');
+      expect(text).toContain('Person: Will Bryk');
+      expect(text).toContain('Role: CEO at Exa (2021-01-01 to present)');
+    });
+
+    it('sends a summary schema', async () => {
+      e2e.mockSuccessfulSearch([{ id: '1', title: 'R', url: 'https://r.com', summary: '{"ceo":"Jane"}' }]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const schema = { type: 'object', properties: { ceo: { type: 'string' } } };
+      await webSearchTool.handler({ query: 'q', summarySchema: schema }, {});
+      expect(e2e.getRequestHistory()[0].body.contents.summary).toEqual({ schema });
+    });
+
+    it('agent_run sends data sources, input records and metadata', async () => {
+      e2e.getServer().mock('POST', '/agent/runs', { status: 200, data: { id: 'agent_run_d', status: 'queued', stopReason: null } });
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_d', { status: 200, data: { id: 'agent_run_d', status: 'completed', stopReason: 'schema_satisfied', output: { text: 'done' } } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      await agentRunTool.handler({
+        query: 'enrich', dataSources: ['similarweb'], inputData: [{ name: 'Exa' }],
+        inputExclusion: [{ name: 'Other' }], metadata: { project: 'x' }
+      }, {});
+      const body = e2e.getRequestHistory().find(r => r.method === 'POST')!.body;
+      expect(body).toEqual({
+        query: 'enrich',
+        dataSources: [{ provider: 'similarweb' }],
+        input: { data: [{ name: 'Exa' }], exclusion: [{ name: 'Other' }] },
+        metadata: { project: 'x' }
+      });
+    });
+
+    it('agent_run cancel and stop call the run endpoints', async () => {
+      e2e.getServer().mock('POST', '/agent/runs/agent_run_x/cancel', { status: 200, data: { id: 'agent_run_x', status: 'cancelled', stopReason: 'cancelled' } });
+      e2e.getServer().mock('POST', '/agent/runs/agent_run_u/stop', { status: 200, data: { id: 'agent_run_u', status: 'completed', stopReason: 'stopped', output: { text: 'partial' } } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const cancelled = await agentRunTool.handler({ action: 'cancel', runId: 'agent_run_x' }, {});
+      expect(cancelled.content[0].text).toContain('Status: cancelled (cancelled)');
+      const stopped = await agentRunTool.handler({ action: 'stop', runId: 'agent_run_u' }, {});
+      expect(stopped.content[0].text).toContain('partial');
+    });
+
+    it('agent_run cancel requires runId', async () => {
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const result = await agentRunTool.handler({ action: 'cancel' }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("runId is required for action 'cancel'");
+    });
+
+    it('agent_run list shows runs and the next cursor', async () => {
+      e2e.getServer().mock('GET', '/agent/runs', { status: 200, data: {
+        object: 'list', hasMore: true, nextCursor: 'c2',
+        data: [{ id: 'agent_run_1', status: 'completed', stopReason: 'schema_satisfied', createdAt: '2026-10-10T00:00:00Z', costDollars: { total: 0.012 }, request: { query: 'what is exa' } }]
+      } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const text = (await agentRunTool.handler({ action: 'list', limit: 1 }, {})).content[0].text;
+      expect(text).toContain('agent_run_1: completed (schema_satisfied), $0.0120');
+      expect(text).toContain('"what is exa"');
+      expect(text).toContain('cursor "c2"');
+    });
+
+    it('monitors trigger runs a monitor now', async () => {
+      e2e.getServer().mock('POST', '/monitors/mon_1/trigger', { status: 200, data: { triggered: true } });
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const result = await monitorsTool.handler({ action: 'trigger', monitorId: 'mon_1' }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('Monitor mon_1 triggered');
+    });
+
+    it('monitors trigger reports when Exa did not trigger', async () => {
+      e2e.getServer().mock('POST', '/monitors/mon_2/trigger', { status: 200, data: { triggered: false } });
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const result = await monitorsTool.handler({ action: 'trigger', monitorId: 'mon_2' }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('did not trigger monitor mon_2');
     });
   });
 
