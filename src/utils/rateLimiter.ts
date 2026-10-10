@@ -96,33 +96,6 @@ export class RateLimiter {
   }
 
   /**
-   * Consume a token with automatic retry
-   * @param maxRetries Maximum number of retries
-   * @returns Promise that resolves when token is consumed
-   */
-  public async consumeWithRetry(maxRetries: number = 3): Promise<void> {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        await this.consume();
-        return;
-      } catch (error) {
-        if (error instanceof RateLimitError && attempt < maxRetries) {
-          this.logger.debug({
-            attempt,
-            maxRetries,
-            retryAfter: error.retryAfter
-          }, 'Rate limited, waiting before retry');
-          
-          // Wait for the specified time before retrying
-          await this.delay(error.retryAfter);
-        } else {
-          throw error;
-        }
-      }
-    }
-  }
-
-  /**
    * Queue a request to be executed when a token is available
    * @returns Promise that resolves when the request can proceed
    */
@@ -292,24 +265,4 @@ export function resetGlobalRateLimiter(): void {
     globalRateLimiter.reset();
   }
   globalRateLimiter = null;
-}
-
-/**
- * Rate limiting middleware for tools
- * Wraps a tool handler with rate limiting
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function withRateLimit<T extends (...args: any[]) => Promise<any>>(
-  handler: T,
-  rateLimiter?: RateLimiter
-): T {
-  const limiter = rateLimiter || getGlobalRateLimiter();
-  
-  return (async (...args: Parameters<T>) => {
-    // Wait for rate limit
-    await limiter.queue();
-    
-    // Execute the handler
-    return handler(...args);
-  }) as T;
 }

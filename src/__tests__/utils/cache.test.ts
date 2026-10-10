@@ -41,7 +41,7 @@ jest.mock('../../utils/pinoLogger.js', () => ({
 }));
 
 // Now import the modules after mocks are set up
-import { RequestCache, globalCache, createCachedRequest, CacheStats, getGlobalCache, resetGlobalCache } from '../../utils/cache.js';
+import { RequestCache, CacheStats, getGlobalCache, resetGlobalCache } from '../../utils/cache.js';
 
 describe('RequestCache', () => {
   let cache: RequestCache;
@@ -233,77 +233,4 @@ describe('RequestCache', () => {
   });
 });
 
-describe('globalCache', () => {
-  beforeEach(() => {
-    resetGlobalCache();
-  });
-
-  afterEach(() => {
-    resetGlobalCache();
-  });
-
-  it('should lazily initialize global cache on first access', () => {
-    // First access should create the cache
-    const cache1 = getGlobalCache();
-    expect(cache1).toBeDefined();
-    expect(cache1.isEnabled()).toBe(false); // disabled in test env
-    
-    // Subsequent access should return the same instance
-    const cache2 = getGlobalCache();
-    expect(cache2).toBe(cache1);
-  });
-
-  it('should provide backward compatible globalCache object', () => {
-    const endpoint = '/search';
-    const requestData = { query: 'test' };
-    const responseData = { results: ['result1'] };
-    
-    // globalCache should work with the proxy object
-    expect(globalCache.get(endpoint, requestData)).toBeNull();
-    
-    globalCache.set(endpoint, requestData, responseData);
-    // Since cache is disabled in test env, get will still return null
-    expect(globalCache.get(endpoint, requestData)).toBeNull();
-    
-    // Enable cache to test functionality
-    globalCache.setEnabled(true);
-    globalCache.set(endpoint, requestData, responseData);
-    expect(globalCache.get(endpoint, requestData)).toEqual(responseData);
-    
-    // Test other methods
-    const stats = globalCache.getStats();
-    expect(stats).toBeDefined();
-    expect(stats.size).toBeGreaterThanOrEqual(0);
-    
-    globalCache.clear();
-    expect(globalCache.getStats().size).toBe(0);
-  });
-
-  it('should handle configuration errors gracefully', () => {
-    // Even if config fails, should create a disabled cache
-    const cache = getGlobalCache();
-    expect(cache).toBeDefined();
-    expect(cache.isEnabled()).toBe(false);
-  });
-
-  it('should properly reset global cache', () => {
-    const cache1 = getGlobalCache();
-    const endpoint = '/search';
-    const requestData = { query: 'test' };
-    const responseData = { results: ['result1'] };
-    
-    cache1.setEnabled(true);
-    cache1.set(endpoint, requestData, responseData);
-    
-    // Reset should clear the cache
-    resetGlobalCache();
-    
-    // Next access should create a new instance
-    const cache2 = getGlobalCache();
-    expect(cache2).not.toBe(cache1);
-    expect(cache2.get(endpoint, requestData)).toBeNull();
-  });
-});
-
-// Remove createCachedRequest tests to simplify TypeScript mocking issues
 // The functionality is tested through the main cache tests

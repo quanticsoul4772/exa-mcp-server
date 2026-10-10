@@ -81,6 +81,9 @@ function pageNote(page: ExaList<unknown>): string {
 
 export const monitorsTool = createActionTool({
   name: "monitors",
+  title: "Exa Monitors",
+  // Bundles create/update/delete, so it carries the worst-case hints
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   description: "Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, list_runs, get_run (read a run's results here).",
   schema: monitorsSchema,
   enabled: false,

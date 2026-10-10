@@ -51,7 +51,8 @@ const lines = [
 ];
 
 for (const tool of tools) {
-  lines.push(`## ${tool.name}`, '', tool.description, '', `On by default: ${tool.enabled ? 'yes' : 'no'}`, '');
+  const hints = Object.entries(tool.annotations).map(([k, v]) => `${k.replace('Hint', '')}: ${v}`).join(', ');
+  lines.push(`## ${tool.name}`, '', `**${tool.title}**`, '', tool.description, '', `On by default: ${tool.enabled ? 'yes' : 'no'}. Hints: ${hints}.`, '');
   lines.push('| Parameter | Type | Required | Default | Description |', '|---|---|---|---|---|');
   for (const [name, field] of Object.entries(tool.schema.shape)) {
     const d = describeType(field);

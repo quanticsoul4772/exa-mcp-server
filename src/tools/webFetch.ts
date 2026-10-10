@@ -51,6 +51,7 @@ const webFetchSchema = z.object({
 
 export const webFetchTool = createTool({
   name: "web_fetch",
+  title: "Fetch Web Pages (Exa)",
   description: "Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.",
   schema: webFetchSchema,
   enabled: true,

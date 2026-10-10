@@ -37,20 +37,7 @@ function createPinoLogger(): Logger {
     }
   };
 
-  // Disable pino-pretty for MCP servers to avoid ANSI color codes breaking JSON parsing
-  // MCP servers need clean JSON output without formatting
-  // if (config.environment.nodeEnv === 'development') {
-  //   loggerOptions.transport = {
-  //     target: 'pino-pretty',
-  //     options: {
-  //       colorize: true,
-  //       translateTime: 'HH:MM:ss',
-  //       ignore: 'pid,hostname',
-  //       singleLine: false
-  //     }
-  //   };
-  // }
-
+  // Logs go to stderr: on stdio, stdout carries only the MCP protocol
   return pino(loggerOptions, pino.destination({ dest: 2, sync: false })); // 2 = stderr
 }
 

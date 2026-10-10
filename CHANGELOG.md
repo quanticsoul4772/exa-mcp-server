@@ -23,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.6.0] - 2026-10-10
+
+### Added
+- Tool titles and MCP annotations (read-only, destructive, idempotent, open-world hints) on every tool: the five search/fetch tools are read-only; `agent_run` and `websets` create billable resources; `monitors` can delete.
+- Server `instructions` sent at initialization: a short guide to choosing a tool and what costs money.
+- CI (`.github/workflows/ci.yml`): typecheck, lint, tests and build on Node 20, 22 and 24; checks that startup writes nothing to stdout and that `--list-tools` works without a key; builds and smoke-tests the Docker image.
+
+### Changed
+- Tools are registered with `registerTool` (the deprecated `server.tool` call is gone). Server construction moved to `src/server.ts` so tests can connect a real client.
+- Requires Node.js 20.19 or newer (yargs 18, lru-cache 11 and eslint 10 already required it).
+- Dockerfile: Node 22, `npm ci --omit=dev`, runs as the `node` user; removed the placeholder `EXA_API_KEY` (it passed validation and caused 401s) and the unused `EXPOSE 3000`.
+- Claude Code Review workflow runs on `pull_request` instead of `pull_request_target`. It failed on every PR with "Invalid OIDC token", and `pull_request_target` would run fork PRs with this repository's secrets. Workflows use `actions/checkout@v7`.
+
+### Removed
+- Unused modules: `factory`, `healthCheck`, `logger`, `memoryOptimizer`, `optimizedCache`, `requestBatcher`, `urlValidator` (nothing imported them; they still shipped in `build/`), and unused exports (`createExaRequestHandler`, `createCachedRequest`, `globalCache`, `withRateLimit`, type guards).
+- Unused dependencies `pino-pretty` and `@types/axios-mock-adapter`.
+- Stale files: `.eslintrc.json` (ESLint 10 uses `eslint.config.js`), `config/`, and docs describing removed tools and modules (`docs/API.md`, `docs/API_REFERENCE.md`, `docs/TESTING.md`, `docs/testing/TEST_PLAN*.md`, `docs/development/QWEN.md`, `OPTIMIZATION_REPORT.md`, `DOCUMENTATION_IMPROVEMENTS*.md`).
+
 ## [0.5.1] - 2026-10-10
 
 ### Fixed

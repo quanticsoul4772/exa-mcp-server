@@ -137,6 +137,9 @@ function textResult(text: string, isError = false): ToolResult {
 
 export const agentRunTool: ToolRegistry = {
   name: "agent_run",
+  title: "Exa Research Agent",
+  // Starts a billed run each call; does not delete anything
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   description: "Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.",
   schema: agentRunSchema,
   enabled: false,

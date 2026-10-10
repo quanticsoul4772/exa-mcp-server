@@ -37,6 +37,7 @@ const findSimilarSchema = z.object({
 
 export const findSimilarTool = createTool({
   name: "find_similar",
+  title: "Find Similar Pages (Exa)",
   description: "Find pages similar to a reference URL. Use when you have an example page and want more like it. Requires a URL, not a query. Note: Exa marks /findSimilar deprecated; exa_search with a query describing the page is the long-term replacement.",
   schema: findSimilarSchema,
   enabled: true,

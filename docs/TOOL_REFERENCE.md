@@ -1,6 +1,6 @@
 # Tool Reference
 
-Generated from the tool schemas in `src/tools/` (version 0.5.1) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
+Generated from the tool schemas in `src/tools/` (version 0.6.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
 
 ## Contents
 
@@ -16,9 +16,11 @@ Generated from the tool schemas in `src/tools/` (version 0.5.1) by `scripts/gen-
 
 ## exa_search
 
+**Exa Web Search**
+
 Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.
 
-On by default: yes
+On by default: yes. Hints: readOnly: true, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -52,9 +54,11 @@ On by default: yes
 
 ## web_fetch
 
+**Fetch Web Pages (Exa)**
+
 Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.
 
-On by default: yes
+On by default: yes. Hints: readOnly: true, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -78,9 +82,11 @@ On by default: yes
 
 ## answer_question
 
+**Answer with Citations (Exa)**
+
 Get a direct answer to a question with cited sources. Use instead of exa_search when you want a synthesized answer, not a list of results. Set outputSchema for a structured answer. For open-ended multi-step research use agent_run.
 
-On by default: yes
+On by default: yes. Hints: readOnly: true, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -93,9 +99,11 @@ On by default: yes
 
 ## find_similar
 
+**Find Similar Pages (Exa)**
+
 Find pages similar to a reference URL. Use when you have an example page and want more like it. Requires a URL, not a query. Note: Exa marks /findSimilar deprecated; exa_search with a query describing the page is the long-term replacement.
 
-On by default: yes
+On by default: yes. Hints: readOnly: true, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -118,9 +126,11 @@ On by default: yes
 
 ## code_search
 
+**Code Search (Exa)**
+
 Search for code examples, API usage, and programming patterns across GitHub, docs, and Stack Overflow. Use instead of exa_search for code-specific queries. Returns token-efficient snippets with source URLs. Does NOT search general web content.
 
-On by default: yes
+On by default: yes. Hints: readOnly: true, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -129,9 +139,11 @@ On by default: yes
 
 ## agent_run
 
+**Exa Research Agent**
+
 Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.
 
-On by default: no
+On by default: no. Hints: readOnly: false, destructive: false, idempotent: false, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -147,9 +159,11 @@ On by default: no
 
 ## monitors
 
+**Exa Monitors**
+
 Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, list_runs, get_run (read a run's results here).
 
-On by default: no
+On by default: no. Hints: readOnly: false, destructive: true, idempotent: false, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -170,9 +184,11 @@ On by default: no
 
 ## websets
 
+**Exa Websets**
+
 Build Exa Websets: collections of companies, people, articles or papers that match your criteria, with optional extracted fields (enrichments). Creation runs in the background; use get to check progress and list_items to read results. Requires an Exa plan with Websets API access.
 
-On by default: no
+On by default: no. Hints: readOnly: false, destructive: false, idempotent: false, openWorld: true.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|

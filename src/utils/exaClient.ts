@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 let _sharedClient: AxiosInstance | null = null;
 import axiosRetry from "axios-retry";
 import { getConfig } from "../config/index.js";
-import { createRequestLogger, logWarn, generateRequestId } from "./pinoLogger.js";
+import { createRequestLogger, logWarn } from "./pinoLogger.js";
 import { ResponseFormatter } from "./formatter.js";
 
 /**
@@ -139,55 +139,6 @@ export function handleExaError(
 }
 
 /**
- * Creates a standard request handler with logging and error handling.
- * Generic function for creating tool-specific request handlers.
- * 
- * @template TRequest - Type of the request data
- * @template TResponse - Type of the response data
- * @param {string} toolName - Name of the tool
- * @param {string} endpoint - API endpoint to call
- * @returns {Function} Async function that handles the request
- * 
- * @example
- * ```typescript
- * const handler = createExaRequestHandler<MyRequest, MyResponse>(
- *   'my_tool',
- *   '/api/endpoint'
- * );
- * ```
- */
-export function createExaRequestHandler<TRequest, TResponse>(
-  toolName: string,
-  endpoint: string
-) {
-  return async (
-    requestData: TRequest,
-    formatResponse: (response: TResponse) => string
-  ): Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> => {
-    const requestId = generateRequestId();
-    const logger = createRequestLogger(requestId, toolName);
-    
-    logger.start(JSON.stringify(requestData));
-    
-    try {
-      const client = createExaClient();
-      const response = await client.post<TResponse>(endpoint, requestData);
-      
-      logger.log("Request completed successfully");
-      
-      return {
-        content: [{
-          type: "text",
-          text: formatResponse(response.data)
-        }]
-      };
-    } catch (error) {
-      return handleExaError(error, toolName, logger);
-    }
-  };
-}
-
-/**
  * Returns a module-level singleton Axios client configured for the Exa API.
  * Avoids rebuilding the client (including retry config) on every tool call.
  * Call resetSharedExaClient() in tests to get a fresh instance.
@@ -197,11 +148,4 @@ export function getSharedExaClient(): AxiosInstance {
     _sharedClient = createExaClient();
   }
   return _sharedClient;
-}
-
-/**
- * Resets the shared client singleton. Intended for use in tests only.
- */
-export function resetSharedExaClient(): void {
-  _sharedClient = null;
 }
