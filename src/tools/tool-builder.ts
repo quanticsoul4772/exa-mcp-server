@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ToolRegistry, ToolHandlerExtra } from "./config.js";
+import { READ_ONLY_WEB, ToolAnnotations, ToolRegistry, ToolHandlerExtra } from "./config.js";
 import { ExaSearchRequest, ExaSearchResponse } from "../types.js";
 import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
 import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
@@ -14,6 +14,14 @@ import { logExaUsage } from "../utils/usageLogger.js";
  */
 type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   name: string;
+  /** Display name; defaults to name */
+  title?: string;
+  /**
+   * Behavior hints. Defaults to read-only: createTool wraps single POSTs to
+   * Exa's read-only endpoints. Tools that create or delete resources use
+   * createActionTool or a custom handler and declare their own hints.
+   */
+  annotations?: ToolAnnotations;
   description: string;
   schema: T;
   enabled: boolean;
@@ -80,6 +88,8 @@ export function createTool<
 ): ToolRegistry {
   return {
     name: config.name,
+    title: config.title ?? config.name,
+    annotations: config.annotations ?? READ_ONLY_WEB,
     description: config.description,
     schema: config.schema,
     enabled: config.enabled,

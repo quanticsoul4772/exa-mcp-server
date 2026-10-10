@@ -50,9 +50,35 @@ export type ToolHandler = (
  * Base interface for tool registration in the MCP server.
  * Each tool must implement this interface to be registered.
  */
+/**
+ * MCP tool annotations: hints to clients about a tool's behavior
+ */
+export interface ToolAnnotations {
+  /** Never modifies anything */
+  readOnlyHint?: boolean;
+  /** May delete or overwrite data (meaningful only when not read-only) */
+  destructiveHint?: boolean;
+  /** Repeating a call with the same arguments has no extra effect */
+  idempotentHint?: boolean;
+  /** Interacts with an open world of external entities (the web) */
+  openWorldHint?: boolean;
+}
+
+/**
+ * Hints shared by the tools that only read from Exa
+ */
+export const READ_ONLY_WEB: ToolAnnotations = {
+  readOnlyHint: true,
+  openWorldHint: true
+};
+
 export interface ToolRegistry {
   /** Unique identifier for the tool (snake_case) */
   name: string;
+  /** Human-readable display name */
+  title: string;
+  /** Behavior hints for clients */
+  annotations: ToolAnnotations;
   /** Human-readable description of the tool's functionality */
   description: string;
   /** Zod schema defining the tool's parameters */

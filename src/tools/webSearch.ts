@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createSearchTool, LONG_REQUEST_TIMEOUT_MS } from "./tool-builder.js";
 import { getConfig } from "../config/index.js";
+import { ToolRegistry } from "./config.js";
 import { DEFAULT_EXTRAS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 
 // numResults: min 1 (0 results is meaningless), max 100 (Exa API maximum)
@@ -56,7 +57,7 @@ const webSearchSchema = z.object({
     .describe("Extra query variations (deep search types only)")
 });
 
-export const webSearchTool = createSearchTool(
+export const webSearchTool: ToolRegistry = { ...createSearchTool(
   "exa_search",
   "Search the web with Exa. Use for discovery when you don't have a URL yet. Covers specialized searches through filters: research papers (category 'publication'), companies (category 'company', optionally subpages), people (category 'people'), news, posts on X (includeDomains ['x.com','twitter.com']), and competitors (describe the business, excludeDomains its own site). Set outputSchema for a synthesized, cited answer. Use answer_question for a direct answer to one question, code_search for code, web_fetch to read known URLs.",
   webSearchSchema,
@@ -100,4 +101,4 @@ export const webSearchTool = createSearchTool(
   undefined,
   // Deep search types can run for minutes
   (args) => args.searchType?.startsWith('deep') ? LONG_REQUEST_TIMEOUT_MS : undefined
-);
+), title: "Exa Web Search" };

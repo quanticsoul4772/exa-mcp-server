@@ -1,6 +1,6 @@
 {
   "name": "exa-mcp-server",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "MCP server for Exa AI: web search with filters and synthesized output, page fetching, cited answers, code search, research agent runs, scheduled monitors, and Websets.",
   "type": "module",
   "repository": {
@@ -46,17 +46,15 @@
     "dotenv": "^17.4.1",
     "lru-cache": "^11.2.1",
     "pino": "^10.3.1",
-    "pino-pretty": "^13.1.1",
     "yargs": "^18.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@jest/globals": "^30.3.0",
-    "@types/axios-mock-adapter": "^1.9.0",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.5.0",
+    "@types/node": "^22.0.0",
     "@types/yargs": "^17.0.33",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
@@ -70,6 +68,6 @@
     "typescript": "^6.0.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   }
 }

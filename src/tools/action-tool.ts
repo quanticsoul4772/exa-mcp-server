@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AxiosInstance } from "axios";
-import { ToolRegistry, ToolHandlerExtra, ToolResult } from "./config.js";
+import { ToolAnnotations, ToolRegistry, ToolHandlerExtra, ToolResult } from "./config.js";
 import { extractToolContext } from "./progress-tracker.js";
 import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
 import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
@@ -51,6 +51,8 @@ function createCaller(client: AxiosInstance, signal?: AbortSignal): ExaCaller {
  */
 export function createActionTool<T extends z.ZodObject<z.ZodRawShape>>(config: {
   name: string;
+  title: string;
+  annotations: ToolAnnotations;
   description: string;
   schema: T;
   enabled: boolean;
@@ -58,6 +60,8 @@ export function createActionTool<T extends z.ZodObject<z.ZodRawShape>>(config: {
 }): ToolRegistry {
   return {
     name: config.name,
+    title: config.title,
+    annotations: config.annotations,
     description: config.description,
     schema: config.schema,
     enabled: config.enabled,

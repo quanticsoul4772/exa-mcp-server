@@ -21,6 +21,8 @@ Sign up at [exa.ai](https://exa.ai/) and create an API key.
 
 ### 2. Build
 
+Requires Node.js 20.19 or newer.
+
 ```bash
 git clone https://github.com/quanticsoul4772/exa-mcp-server.git
 cd exa-mcp-server
@@ -137,11 +139,20 @@ npm run inspector      # try the server in MCP Inspector
 
 Source layout:
 
-- `src/index.ts`: entry point, CLI, tool registration
+- `src/index.ts`: entry point and CLI
+- `src/server.ts`: builds the MCP server and registers tools (title, description, schema, hints)
+- `src/instructions.ts`: guidance sent to clients at initialization
 - `src/tools/`: one file per tool; `index.ts` holds the registry and old-name aliases
 - `src/utils/`: HTTP client, formatter, cache, rate limiter, logging
 - `src/types.ts`: Exa API request and response types
 - `src/version.ts`: server version (a test keeps it equal to `package.json`)
+
+### Docker
+
+```bash
+docker build -t exa-mcp-server .
+docker run -i --rm -e EXA_API_KEY exa-mcp-server
+```
 
 ## Troubleshooting
 

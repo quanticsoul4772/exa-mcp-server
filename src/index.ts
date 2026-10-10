@@ -1,18 +1,15 @@
 #!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { z } from 'zod';
 
 // Import configuration first to validate environment variables
 import { getConfig } from "./config/index.js";
 // Import the tool registry system
 import { toolRegistry, resolveToolNames } from "./tools/index.js";
-import { ToolHandlerExtra } from "./tools/config.js";
 import { logInfo, logError, logWarn } from "./utils/pinoLogger.js";
 import { CLIArguments } from "./types/cli.js";
-import { SERVER_VERSION } from "./version.js";
+import { buildServer } from "./server.js";
 
 /**
  * Exa AI Web Search MCP Server
@@ -25,75 +22,19 @@ import { SERVER_VERSION } from "./version.js";
  * citations, code search, research agent runs, scheduled monitors and Websets.
  */
 
-class ExaServer {
-  private server: McpServer;
-  private specifiedTools: Set<string>;
+/**
+ * Build the server and serve it over stdio
+ */
+async function run(specifiedTools: Set<string>): Promise<void> {
+  const { server, registered } = buildServer(specifiedTools);
+  logInfo(`Starting Exa MCP server with ${registered.length} tools: ${registered.join(', ')}`);
 
-  constructor(specifiedTools: Set<string>) {
-    this.server = new McpServer({
-      name: "exa-search-server",
-      version: SERVER_VERSION
-    });
-    this.specifiedTools = specifiedTools;
-    
-    logInfo("Server initialized");
-  }
-
-  private setupTools(): string[] {
-    // Register tools based on specifications
-    const registeredTools: string[] = [];
-
-    Object.entries(toolRegistry).forEach(([toolId, tool]) => {
-      // If specific tools were provided, only enable those.
-      // Otherwise, enable all tools marked as enabled by default
-      const shouldRegister = this.specifiedTools.size > 0
-        ? this.specifiedTools.has(toolId)
-        : tool.enabled;
-
-      if (shouldRegister) {
-        // Convert ZodObject to ZodRawShape for MCP server compatibility
-        const schema = tool.schema instanceof z.ZodObject ? tool.schema.shape : tool.schema;
-
-        // The SDK's extra carries the abort signal, request id, progress token
-        // and sendNotification; tools read those fields directly
-        const handler = async (args: Record<string, unknown>, extra: ToolHandlerExtra) =>
-          tool.handler(args, extra);
-
-        this.server.tool(
-          tool.name,
-          tool.description,
-          schema,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          handler as any
-        );
-        registeredTools.push(toolId);
-      }
-    });
-
-    return registeredTools;
-  }
-
-  async run(): Promise<void> {
-    try {
-      // Set up tools before connecting
-      const registeredTools = this.setupTools();
-      
-      logInfo(`Starting Exa MCP server with ${registeredTools.length} tools: ${registeredTools.join(', ')}`);
-      
-      const transport = new StdioServerTransport();
-      
-      // Handle connection errors
-      transport.onerror = (error) => {
-        logError(`Transport error: ${error.message}`);
-      };
-      
-      await this.server.connect(transport);
-      logInfo("Exa Search MCP server running on stdio");
-    } catch (error) {
-      logError(`Server initialization error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
-  }
+  const transport = new StdioServerTransport();
+  transport.onerror = (error) => {
+    logError(`Transport error: ${error.message}`);
+  };
+  await server.connect(transport);
+  logInfo("Exa Search MCP server running on stdio");
 }
 
 // Main entry point
@@ -147,8 +88,7 @@ async function main() {
     const config = getConfig();
     logInfo(`Configuration loaded successfully for environment: ${config.environment.nodeEnv}`);
 
-    const server = new ExaServer(specifiedTools);
-    await server.run();
+    await run(specifiedTools);
   } catch (error) {
     logError(`Fatal server error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

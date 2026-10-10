@@ -42,6 +42,7 @@ const answerSchema = z.object({
 
 export const answerTool = createTool({
   name: "answer_question",
+  title: "Answer with Citations (Exa)",
   description: "Get a direct answer to a question with cited sources. Use instead of exa_search when you want a synthesized answer, not a list of results. Set outputSchema for a structured answer. For open-ended multi-step research use agent_run.",
   schema: answerSchema,
   enabled: true,

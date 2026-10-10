@@ -14,6 +14,7 @@ const codeSearchSchema = z.object({
 
 export const codeSearchTool = createTool({
   name: "code_search",
+  title: "Code Search (Exa)",
   description: "Search for code examples, API usage, and programming patterns across GitHub, docs, and Stack Overflow. Use instead of exa_search for code-specific queries. Returns token-efficient snippets with source URLs. Does NOT search general web content.",
   schema: codeSearchSchema,
   enabled: true,

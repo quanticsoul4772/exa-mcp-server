@@ -21,7 +21,8 @@ An MCP server (stdio) exposing Exa AI APIs as tools. TypeScript, ES modules (`.j
 
 ### Core Components
 
-1. **Entry point** (`src/index.ts`): yargs CLI (`--tools`, `--list-tools`), maps removed tool names to replacements via `resolveToolNames`, registers tools with the MCP server, and injects the server instance into handlers for progress notifications.
+1. **Entry point** (`src/index.ts`): yargs CLI (`--tools`, `--list-tools`), maps removed tool names to replacements via `resolveToolNames`, then serves `buildServer()` over stdio.
+   **Server** (`src/server.ts`): `buildServer(tools)` creates the `McpServer` with `instructions` (`src/instructions.ts`) and registers each tool with `registerTool` (title, description, input schema, annotations). Handlers receive the SDK's `extra` (abort `signal`, `requestId`, `_meta.progressToken`, `sendNotification`).
 
 2. **Tool registry** (`src/tools/index.ts`): a single `toolRegistry` object listing every tool, plus `toolAliases` for names removed in 0.5.0. Tools do not self-register.
 
@@ -42,6 +43,8 @@ An MCP server (stdio) exposing Exa AI APIs as tools. TypeScript, ES modules (`.j
    - `websets` (`/websets/v0/websets`): off by default; needs Websets API access on the Exa plan
 
 5. **Configuration** (`src/config/index.ts`): Zod-validated env config, fail-fast. `EXA_API_KEY` required. See `.env.example`.
+
+   Every tool declares a `title` and `annotations` (readOnly/destructive/idempotent/openWorld hints). `createTool` defaults to read-only; tools that create or delete resources must declare their own.
 
 6. **Utilities** (`src/utils/`): `formatter.ts` (output text, synthesized output, grounding, cost, `/contents` statuses), `exaClient.ts` (shared Axios client, retries, error handling), `cache.ts` (LRU + TTL), `rateLimiter.ts`, `pinoLogger.ts` (redacted structured logs), `usageLogger.ts` (CSV only when `EXA_USAGE_CSV` is set).
 

@@ -83,6 +83,9 @@ function pageNote(page: ExaList<unknown>): string {
 
 export const websetsTool = createActionTool({
   name: "websets",
+  title: "Exa Websets",
+  // Creates billable Websets; has no delete action
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   description: "Build Exa Websets: collections of companies, people, articles or papers that match your criteria, with optional extracted fields (enrichments). Creation runs in the background; use get to check progress and list_items to read results. Requires an Exa plan with Websets API access.",
   schema: websetsSchema,
   enabled: false,
