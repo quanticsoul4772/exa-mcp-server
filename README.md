@@ -138,6 +138,7 @@ exa-mcp-server                                        # tools on by default
 | `LOG_LEVEL` | No | `ERROR` (production) / `DEBUG` (development) | ERROR, WARN, INFO, DEBUG |
 | `NODE_ENV` | No | `development` | Environment mode |
 | `REDACT_LOGS` | No | `true` | Redact sensitive data in logs |
+| `DOTENV_CONFIG_PATH` | No | `.env` in the working directory | Load variables from this file. Useful when the MCP client's environment lacks a key (e.g. a Windows user variable set after the client started). Variables already set take precedence |
 | `EXA_USAGE_CSV` | No | unset | If set, append one CSV line per tool call to this file |
 | `VOYAGE_API_KEY` | For `rerank` / `relevantTo` | unset | Voyage AI key. Those options return an error without it; nothing else uses Voyage |
 | `VOYAGE_RERANK_MODEL` | No | `rerank-3-lite` | Voyage reranker (`rerank-3` for higher quality) |
