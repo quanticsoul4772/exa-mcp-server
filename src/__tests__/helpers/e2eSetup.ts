@@ -1,3 +1,4 @@
+import http from 'http';
 import { TestServer } from './testServer.js';
 
 /**
@@ -38,6 +39,10 @@ export class E2ETestSetup {
    */
   async stop(): Promise<void> {
     await this.testServer.stop();
+    // Node pools keep-alive sockets in the global agent. Sockets to the
+    // stopped server would be reused after a restart on the same port
+    // and fail with "socket hang up".
+    http.globalAgent.destroy();
     
     // Restore original environment
     process.env = { ...this.originalEnv };

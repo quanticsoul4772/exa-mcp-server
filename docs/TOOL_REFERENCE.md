@@ -1,6 +1,6 @@
 # Tool Reference
 
-Generated from the tool schemas in `src/tools/` (version 0.8.1) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
+Generated from the tool schemas in `src/tools/` (version 0.9.0) by `scripts/gen-tool-reference.mjs`. Every tool response ends with the estimated cost when Exa reports one.
 
 ## Contents
 

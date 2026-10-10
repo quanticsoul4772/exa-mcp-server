@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.9.0] - 2026-10-10
+
+### Added
+- Prompt-injection screen for `web_fetch` using TypeSafe Jev, off by default: `JEV_SCREEN=off|shadow|warn`.
+  - `shadow` scores every returned page and logs the score; output is unchanged.
+  - `warn` adds a warning line to pages scoring at or above `JEV_SCREEN_THRESHOLD` (default 0.35).
+  - The screen runs on the text actually returned, including the passages selected with `relevantTo`. Content is never withheld. A failed screen shows `[injection screen: not screened (HTTP n)]`.
+  - `JEV_AUDIT_LOG` appends one JSON line per screened page.
+  - The server refuses to start with screening on and no `TYPESAFE_API_KEY`.
+  - Back-test results and limits are in `claudedocs/jev-injection-backtest-2026-10-10.md`.
+
+### Fixed (tests)
+- E2E tests drain Node's global keep-alive agent when the test server stops; reused sockets to the restarted server failed with "socket hang up".
+
 ## [0.8.1] - 2026-10-10
 
 ### Fixed
