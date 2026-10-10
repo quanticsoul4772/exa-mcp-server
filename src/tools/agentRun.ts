@@ -7,6 +7,7 @@ import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
 import { createRequestLogger, generateRequestId, logWarn } from "../utils/pinoLogger.js";
 import { logExaUsage } from "../utils/usageLogger.js";
 import { ResponseFormatter } from "../utils/formatter.js";
+import { LARGE_RESULT_CHARS } from "./shared.js";
 import { ExaCostDollars, ExaGrounding } from "../types.js";
 
 /** How often a run's status is polled (tests lower this) */
@@ -214,6 +215,7 @@ function textResult(text: string, isError = false): ToolResult {
 export const agentRunTool: ToolRegistry = {
   name: "agent_run",
   title: "Exa Research Agent",
+  maxResultChars: LARGE_RESULT_CHARS,
   // Starts billed runs; cancel/stop end a run irreversibly
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   description: "Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.",

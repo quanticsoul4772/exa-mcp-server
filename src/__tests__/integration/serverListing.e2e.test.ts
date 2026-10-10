@@ -43,6 +43,15 @@ describe('what MCP clients see', () => {
     expect(byName.websets.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
   });
 
+  it('declares a larger inline-result limit for tools with large output', async () => {
+    const all = Object.keys(toolRegistry);
+    const { client } = await connect(all);
+    const { tools } = await client.listTools();
+    const limits = Object.fromEntries(tools.map(t => [t.name, t._meta?.['anthropic/maxResultSizeChars']]));
+    expect(limits).toMatchObject({ web_fetch: 150000, exa_search: 150000, agent_run: 150000 });
+    expect(limits.answer_question).toBeUndefined();
+  });
+
   it('exposes each tool input schema', async () => {
     const { client } = await connect(['web_fetch']);
     const { tools } = await client.listTools();

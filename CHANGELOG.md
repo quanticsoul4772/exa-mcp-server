@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation inconsistencies
 - Missing information in developer guide
 
+## [0.8.1] - 2026-10-10
+
+### Fixed
+- Large results no longer get saved to disk by Claude Code. `web_fetch`, `exa_search` and `agent_run` declare `_meta["anthropic/maxResultSizeChars"]: 150000`; without it, Claude Code replaces results above its default limit (25,000 tokens) with a file reference, and `web_fetch`'s default 100,000-character budget can exceed that. Verified with `claude -p`: 12 Wikipedia pages at the default budget arrived inline.
+
+### Not adopted
+- MCP `structuredContent`/`outputSchema`. Measured with `claude -p`: when a result carries `structuredContent`, Claude Code passes only that JSON to the model and drops the text block. The text output's notes (truncation, failed URLs, paging cursors, formatted entity summaries) would be lost. See `claudedocs/improvement-research-2026-10-10.md` section 11.
+
 ## [0.8.0] - 2026-10-10
 
 ### Added

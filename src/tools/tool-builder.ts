@@ -16,6 +16,8 @@ type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   name: string;
   /** Display name; defaults to name */
   title?: string;
+  /** See ToolRegistry.maxResultChars */
+  maxResultChars?: number;
   /**
    * Behavior hints. Defaults to read-only: createTool wraps single POSTs to
    * Exa's read-only endpoints. Tools that create or delete resources use
@@ -96,6 +98,7 @@ export function createTool<
     name: config.name,
     title: config.title ?? config.name,
     annotations: config.annotations ?? READ_ONLY_WEB,
+    ...(config.maxResultChars && { maxResultChars: config.maxResultChars }),
     description: config.description,
     schema: config.schema,
     enabled: config.enabled,

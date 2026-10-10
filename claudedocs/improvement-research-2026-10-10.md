@@ -215,3 +215,27 @@ Correction to parallax's reasoning: Tier 1 does not depend on Tier 2. SDK 1.x `s
 
 User decisions: no Voyage opt-out step; no key rotation.
 
+
+## 11. Tier 4 (structuredContent) measured and dropped (2026-10-10)
+
+**Measurement.** `claude -p --model haiku` with only this server, after `exa_search` was given an `outputSchema` and returned both a formatted text block and `structuredContent`. The model was asked to repeat the tool result exactly. It received **one part: the `structuredContent` JSON**. The text block never reached it. Claude Code's MCP docs do not document this.
+
+**Consequence.** In Claude Code, adopting `structuredContent` replaces the text output. Everything the text adds would disappear unless rebuilt as JSON fields:
+- truncation notes;
+- the failed-URL list;
+- paging cursors with instructions;
+- formatted company and person summaries (the raw entity data includes large web-traffic arrays).
+
+**Decision** (parallax `decide`, causal methodology):
+
+| Option | Score |
+|---|---|
+| Drop Tier 4 | 82 |
+| Opt-in flag | 47 |
+| Adopt everywhere and replicate every note as JSON | 24 |
+
+Claude Code is the only client, so adopting would be a net loss.
+
+**Related fix shipped instead (0.8.1).** Claude Code saves MCP results above its default limit (25,000 tokens, `MAX_MCP_OUTPUT_TOKENS`) to disk and gives the model a file reference. A tool can raise its own limit with `_meta["anthropic/maxResultSizeChars"]`, up to 500,000 (https://code.claude.com/docs/en/mcp.md, "Raise the limit for a specific tool"). `web_fetch`, `exa_search` and `agent_run` now declare 150,000.
+
+Verified with `claude -p`: 12 Wikipedia pages at `web_fetch`'s default 100,000-character budget arrived inline.

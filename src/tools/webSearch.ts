@@ -3,7 +3,7 @@ import { createSearchTool, LONG_REQUEST_TIMEOUT_MS } from "./tool-builder.js";
 import { rerankSearchResults } from "./rerank.js";
 import { getConfig } from "../config/index.js";
 import { ToolRegistry } from "./config.js";
-import { DEFAULT_EXTRAS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
+import { DEFAULT_EXTRAS, LARGE_RESULT_CHARS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 
 /**
  * Candidates to fetch before reranking: the caller's number, else three
@@ -121,4 +121,4 @@ export const webSearchTool: ToolRegistry = { ...createSearchTool(
   async (data, args, { signal }) => args.rerank
     ? rerankSearchResults(data, args.query, args.numResults || getConfig().tools.defaultNumResults, signal)
     : data
-), title: "Exa Web Search" };
+), title: "Exa Web Search", maxResultChars: LARGE_RESULT_CHARS };

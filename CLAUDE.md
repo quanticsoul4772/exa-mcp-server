@@ -44,6 +44,8 @@ An MCP server (stdio) exposing Exa AI APIs as tools. TypeScript, ES modules (`.j
 
 5. **Configuration** (`src/config/index.ts`): Zod-validated env config, fail-fast. `EXA_API_KEY` required. See `.env.example`.
 
+   Tools with large output set `maxResultChars` (sent as `_meta["anthropic/maxResultSizeChars"]`) so Claude Code keeps results inline instead of saving them to disk. Results are text only: Claude Code shows the model only `structuredContent` when present, which would drop the text's notes (see `claudedocs/` section 11).
+
    Every tool declares a `title` and `annotations` (readOnly/destructive/idempotent/openWorld hints). `createTool` defaults to read-only; tools that create or delete resources must declare their own.
 
 6. **Voyage** (optional): `src/utils/voyage.ts` (rerank client with retries, `chunkText`) and `src/tools/rerank.ts` (`rerankSearchResults` for `exa_search` `rerank`, `selectRelevantChunks` for `web_fetch` `relevantTo`). Both run in `createTool`'s `postProcess` step, after the raw Exa response is cached. Missing key or Voyage failure is a tool error, never a silent fallback.

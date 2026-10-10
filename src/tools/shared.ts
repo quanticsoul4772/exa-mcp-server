@@ -12,6 +12,12 @@ import {
 export const SECTIONS = ['header', 'navigation', 'banner', 'body', 'sidebar', 'footer', 'metadata'] as const;
 
 /**
+ * Inline-result limit declared for tools whose output can be large
+ * (web_fetch's default text budget is 100,000 characters)
+ */
+export const LARGE_RESULT_CHARS = 150000;
+
+/**
  * Extras requested when a tool's includeExtras flag is set
  */
 export const DEFAULT_EXTRAS: ExaExtrasOptions = { links: 20, imageLinks: 10 };
