@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTool } from "./tool-builder.js";
 import { ExaCrawlRequest, ExaCrawlResponse } from "../types.js";
 import { ResponseFormatter } from "../utils/formatter.js";
-import { DEFAULT_EXTRAS, SECTIONS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
+import { DEFAULT_EXTRAS, LARGE_RESULT_CHARS, SECTIONS, freshness, freshnessFields, highlightsOption, summaryOption } from "./shared.js";
 import { selectRelevantChunks } from "./rerank.js";
 
 /** Default per-URL text limit when the caller does not set one */
@@ -86,6 +86,8 @@ const webFetchSchema = z.object({
 export const webFetchTool = createTool({
   name: "web_fetch",
   title: "Fetch Web Pages (Exa)",
+  // Default text budget is 100,000 characters; leave room for formatting
+  maxResultChars: LARGE_RESULT_CHARS,
   description: "Read the full content of one or more known URLs (articles, PDFs, any page), up to 100 per call. Set relevantTo to get only the passages that matter for a question. Use when you already have the URLs. Does NOT search — use exa_search to find URLs first. Reports per-URL failures.",
   schema: webFetchSchema,
   enabled: true,

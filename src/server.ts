@@ -17,6 +17,7 @@ type RegisterTool = (
     description: string;
     inputSchema: z.ZodRawShape;
     annotations: ToolAnnotations;
+    _meta?: Record<string, unknown>;
   },
   cb: (args: Record<string, unknown>, extra: ToolHandlerExtra) => Promise<ToolResult>
 ) => unknown;
@@ -54,7 +55,8 @@ export function buildServer(specifiedTools: Set<string>): { server: McpServer; r
         title: tool.title,
         description: tool.description,
         inputSchema: schema,
-        annotations: tool.annotations
+        annotations: tool.annotations,
+        ...(tool.maxResultChars && { _meta: { 'anthropic/maxResultSizeChars': tool.maxResultChars } })
       },
       handler
     );

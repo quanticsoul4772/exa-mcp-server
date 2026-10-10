@@ -83,6 +83,12 @@ export interface ToolRegistry {
   description: string;
   /** Zod schema defining the tool's parameters */
   schema: z.ZodRawShape | z.ZodObject<z.ZodRawShape>;
+  /**
+   * Largest result, in characters, a client should show inline. Sent as
+   * _meta["anthropic/maxResultSizeChars"]: Claude Code otherwise saves
+   * results above its default limit to disk and shows only a file path.
+   */
+  maxResultChars?: number;
   /** Async function that executes the tool's logic */
   handler: ToolHandler;
   /** Whether the tool is enabled by default */
