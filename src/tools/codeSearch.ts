@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTool } from "./tool-builder.js";
 import { ExaContextResponse } from "../types.js";
+import { ResponseFormatter } from "../utils/formatter.js";
 
 const codeSearchSchema = z.object({
   query: z.string().min(1).max(2000).describe("Code search query - describe the pattern, API, or concept you need"),
@@ -13,7 +14,7 @@ const codeSearchSchema = z.object({
 
 export const codeSearchTool = createTool({
   name: "code_search",
-  description: "Search for code examples, API usage, and programming patterns across GitHub, docs, and Stack Overflow. Use instead of exa_search for code-specific queries — optimized for code context, not general web. Returns token-efficient snippets with source URLs. Does NOT search general web content.",
+  description: "Search for code examples, API usage, and programming patterns across GitHub, docs, and Stack Overflow. Use instead of exa_search for code-specific queries. Returns token-efficient snippets with source URLs. Does NOT search general web content.",
   schema: codeSearchSchema,
   enabled: true,
   endpoint: '/context',
@@ -22,17 +23,12 @@ export const codeSearchTool = createTool({
     tokensNum: args.tokensNum
   }),
   formatResponse: (data: ExaContextResponse) => {
-    if (!data.results || data.results.length === 0) {
+    // /context returns one pre-formatted text block (sections with source URLs)
+    if (!data.response || data.response.trim().length === 0) {
       return "No code results found.";
     }
-
-    let output = `## Code Search Results (${data.totalTokens} tokens)\n\n`;
-    data.results.forEach((result, idx) => {
-      output += `### ${idx + 1}. ${result.url}\n`;
-      output += `Tokens: ${result.tokens}\n\n`;
-      output += `${result.text}\n\n`;
-    });
-    return output;
+    const cost = ResponseFormatter.formatCost(data.costDollars);
+    return `## Code Search Results\n\n${data.response}${cost ? `\n\n${cost}` : ''}`;
   },
   getStartContext: (args) => `Code search: "${args.query}"`,
   progressSteps: [

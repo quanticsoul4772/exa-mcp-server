@@ -6,8 +6,6 @@ describe('ResponseFormatter', () => {
     it('should format a search response with results', () => {
       const mockResponse: ExaSearchResponse = {
         requestId: 'test-123',
-        autopromptString: 'test query',
-        resolvedSearchType: 'auto',
         results: [
           {
             id: '1',
@@ -40,8 +38,6 @@ describe('ResponseFormatter', () => {
     it('should handle empty results', () => {
       const mockResponse: ExaSearchResponse = {
         requestId: 'test-123',
-        autopromptString: 'test query',
-        resolvedSearchType: 'auto',
         results: [],
       };
 
@@ -50,30 +46,58 @@ describe('ResponseFormatter', () => {
     });
   });
 
-  describe('formatCrawlResponse', () => {
-    it('should format a crawl response', () => {
-      const mockResults: ExaSearchResult[] = [
-        {
-          id: '1',
-          title: 'Crawled Page',
-          url: 'https://example.com/page',
-          publishedDate: '2024-01-15',
-          author: 'Jane Smith',
-          text: 'This is the full content of the crawled page.',
-        },
-      ];
-
-      const formatted = ResponseFormatter.formatCrawlResponse(mockResults);
-      
-      expect(formatted).toContain('Content from: https://example.com/page');
-      expect(formatted).toContain('Title: Crawled Page');
+  describe('formatContentsResponse', () => {
+    it('formats each fetched page and lists failed URLs', () => {
+      const formatted = ResponseFormatter.formatContentsResponse({
+        requestId: 'r',
+        results: [{ id: '1', title: 'Crawled Page', url: 'https://example.com/page', author: 'Jane Smith', text: 'Full content.' }],
+        statuses: [
+          { id: 'https://example.com/page', status: 'success' },
+          { id: 'https://bad.example', status: 'error', error: { tag: 'CRAWL_TIMEOUT', httpStatusCode: null } }
+        ],
+        costDollars: { total: 0.002 }
+      });
+      expect(formatted).toContain('Crawled Page');
       expect(formatted).toContain('Author: Jane Smith');
-      expect(formatted).toContain('This is the full content of the crawled page.');
+      expect(formatted).toContain('Full content.');
+      expect(formatted).toContain('https://bad.example: CRAWL_TIMEOUT');
+      expect(formatted).not.toContain('https://example.com/page: ');
+      expect(formatted).toContain('Estimated cost: $0.0020');
     });
 
-    it('should handle empty crawl results', () => {
-      const formatted = ResponseFormatter.formatCrawlResponse([]);
-      expect(formatted).toBe('Could not fetch content from the provided URL.');
+    it('handles an empty response', () => {
+      expect(ResponseFormatter.formatContentsResponse({ requestId: 'r', results: [] }))
+        .toBe('Could not fetch content from the provided URLs.');
+    });
+  });
+
+  describe('formatSynthesizedOutput', () => {
+    it('renders string content as-is and objects as JSON with grounding', () => {
+      expect(ResponseFormatter.formatSynthesizedOutput('plain answer')).toContain('plain answer');
+      const formatted = ResponseFormatter.formatSynthesizedOutput(
+        { price: 10 },
+        [{ field: 'price', citations: [{ url: 'https://p.com' }], confidence: 'low' }]
+      );
+      expect(formatted).toContain('"price": 10');
+      expect(formatted).toContain('price (low confidence): https://p.com');
+    });
+  });
+
+  describe('summary label', () => {
+    it('drops a leading Summary: label from Exa summaries', () => {
+      const formatted = ResponseFormatter.formatContentsResponse({
+        requestId: 'r', results: [{ id: '1', url: 'https://a.com', summary: 'Summary: The gist.' }]
+      });
+      expect(formatted).toContain('**Summary:** The gist.');
+      expect(formatted).not.toContain('Summary: Summary:');
+    });
+  });
+
+  describe('formatCost', () => {
+    it('formats total cost and is empty without one', () => {
+      expect(ResponseFormatter.formatCost({ total: 0.1 })).toBe('Estimated cost: $0.1000');
+      expect(ResponseFormatter.formatCost(undefined)).toBe('');
+      expect(ResponseFormatter.formatCost({})).toBe('');
     });
   });
 
@@ -138,95 +162,4 @@ describe('ResponseFormatter', () => {
     });
   });
 
-  describe('formatTwitterResponse', () => {
-    it('should format Twitter search results', () => {
-      const mockResults: ExaSearchResult[] = [
-        {
-          id: '1',
-          title: 'Tweet about AI',
-          url: 'https://twitter.com/user/status/123',
-          publishedDate: '2024-01-15',
-          author: '@techuser',
-          text: 'Just discovered this amazing AI tool that can help with coding!',
-        },
-      ];
-
-      const formatted = ResponseFormatter.formatTwitterResponse(mockResults);
-      
-      expect(formatted).toContain('Found 1 tweets');
-      expect(formatted).toContain('Tweet about AI');
-      expect(formatted).toContain('https://twitter.com/user/status/123');
-      expect(formatted).toContain('@techuser');
-      expect(formatted).toContain('Just discovered this amazing AI tool that can help with coding!');
-    });
-
-    it('should handle empty Twitter results', () => {
-      const formatted = ResponseFormatter.formatTwitterResponse([]);
-      expect(formatted).toBe('No tweets found.');
-    });
-  });
-
-  describe('formatResearchPaperResponse', () => {
-    it('should format research paper results', () => {
-      const mockResults: ExaSearchResult[] = [
-        {
-          id: '1',
-          title: 'Deep Learning in Medical Imaging',
-          url: 'https://arxiv.org/abs/2401.12345',
-          publishedDate: '2024-01-15',
-          author: 'Smith et al.',
-          text: 'This paper presents a novel approach to medical image analysis using deep learning...',
-        },
-      ];
-
-      const formatted = ResponseFormatter.formatResearchPaperResponse(mockResults);
-      
-      expect(formatted).toContain('Found 1 research papers');
-      expect(formatted).toContain('Deep Learning in Medical Imaging');
-      expect(formatted).toContain('Authors: Smith et al.');
-      expect(formatted).toContain('Abstract:');
-    });
-  });
-
-  describe('formatCompanyResponse', () => {
-    it('should format company research results', () => {
-      const mockResults: ExaSearchResult[] = [
-        {
-          id: '1',
-          title: 'TechCorp - Leading Innovation',
-          url: 'https://techcorp.com',
-          publishedDate: '2024-01-15',
-          author: '',
-          text: 'TechCorp is a leading technology company specializing in AI solutions...',
-        },
-      ];
-
-      const formatted = ResponseFormatter.formatCompanyResponse(mockResults);
-      
-      expect(formatted).toContain('Found 1 company-related results');
-      expect(formatted).toContain('TechCorp - Leading Innovation');
-      expect(formatted).toContain('Summary:');
-    });
-  });
-
-  describe('formatCompetitorResponse', () => {
-    it('should format competitor results', () => {
-      const mockResults: ExaSearchResult[] = [
-        {
-          id: '1',
-          title: 'CompetitorAI Inc',
-          url: 'https://competitorai.com',
-          publishedDate: '',
-          author: '',
-          text: 'AI-powered search and analysis platform...',
-        },
-      ];
-
-      const formatted = ResponseFormatter.formatCompetitorResponse(mockResults);
-      
-      expect(formatted).toContain('Found 1 potential competitors');
-      expect(formatted).toContain('CompetitorAI Inc');
-      expect(formatted).toContain('Description:');
-    });
-  });
 });

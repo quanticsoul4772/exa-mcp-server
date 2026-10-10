@@ -1,61 +1,77 @@
 import { z } from "zod";
 import { createTool } from "./tool-builder.js";
+import { ExaCostDollars } from "../types.js";
+import { ResponseFormatter } from "../utils/formatter.js";
 
-interface ExaAnswerResponse {
-  answer: string;
-  citations: Array<{
+interface ExaAnswerRequest {
+  query: string;
+  text?: boolean;
+  model?: 'exa' | 'exa-pro' | 'exa-research' | 'exa-fast';
+  systemPrompt?: string;
+  outputSchema?: Record<string, unknown>;
+  userLocation?: string;
+}
+
+export interface ExaAnswerResponse {
+  requestId?: string;
+  /** A string, or an object matching outputSchema when one was sent */
+  answer: string | Record<string, unknown>;
+  citations?: Array<{
     url: string;
     title: string;
+    publishedDate?: string;
+    author?: string | null;
     text?: string;
-    highlights?: string[];
-    score: number;
   }>;
-  processingTime: number;
+  costDollars?: ExaCostDollars;
 }
 
 const answerSchema = z.object({
   query: z.string().min(1).max(2000).describe("Question to answer"),
-  numResults: z.number().min(1).max(10).optional().default(5),
-  includeText: z.boolean().optional().default(true),
-  textMaxCharacters: z.number().optional().default(500),
-  includeHtmlTags: z.boolean().optional().default(false),
-  includeHighlights: z.boolean().optional().default(false),
-  highlightsMaxCharacters: z.number().optional().default(300)
-    .describe("Max characters for highlights (replaces deprecated highlightsPerUrl)")
+  model: z.enum(['exa', 'exa-pro', 'exa-research', 'exa-fast']).optional()
+    .describe("Answer model: 'exa-fast' (quickest), 'exa' (default), 'exa-pro' (stronger), 'exa-research' (most thorough)"),
+  systemPrompt: z.string().optional()
+    .describe("Extra instructions for the answer (tone, format, focus)"),
+  outputSchema: z.record(z.any()).optional()
+    .describe("JSON Schema (Draft 7) for a structured answer instead of prose"),
+  userLocation: z.string().length(2).optional()
+    .describe("Two-letter ISO country code to localize sources (e.g. 'US')"),
+  includeText: z.boolean().optional().default(false)
+    .describe("Include each citation's page text")
 });
 
 export const answerTool = createTool({
   name: "answer_question",
-  description: "Get a direct answer to a factual question with citations. Use instead of exa_search when you want a synthesized answer, not raw search results. Does NOT return a list of links — returns a single answer with sources. Not suitable for open-ended research.",
+  description: "Get a direct answer to a question with cited sources. Use instead of exa_search when you want a synthesized answer, not a list of results. Set outputSchema for a structured answer. For open-ended multi-step research use agent_run.",
   schema: answerSchema,
   enabled: true,
   endpoint: '/answer',
-  createRequest: (args) => ({
+  createRequest: (args): ExaAnswerRequest => ({
     query: args.query,
-    numResults: args.numResults,
-    text: args.includeText ? {
-      maxCharacters: args.textMaxCharacters,
-      includeHtmlTags: args.includeHtmlTags
-    } : false,
-    highlights: args.includeHighlights ? {
-      maxCharacters: args.highlightsMaxCharacters
-    } : false
+    text: args.includeText,
+    ...(args.model && { model: args.model }),
+    ...(args.systemPrompt && { systemPrompt: args.systemPrompt }),
+    ...(args.outputSchema && { outputSchema: args.outputSchema }),
+    ...(args.userLocation && { userLocation: args.userLocation })
   }),
   formatResponse: (data: ExaAnswerResponse) => {
-    let output = `## Answer\n\n${data.answer}\n\n## Citations\n\n`;
-    data.citations.forEach((citation, idx) => {
-      output += `### ${idx + 1}. [${citation.title}](${citation.url})\n`;
-      output += `Relevance: ${(citation.score * 100).toFixed(1)}%\n`;
-      if (citation.text) {
-        output += `\n${citation.text.substring(0, 200)}...\n`;
-      }
-      if (citation.highlights?.length) {
-        output += `\n**Key Points:**\n`;
-        citation.highlights.forEach(h => output += `- ${h}\n`);
-      }
-      output += '\n';
-    });
-    return output;
+    const lines: string[] = ['## Answer', ''];
+    lines.push(typeof data.answer === 'string'
+      ? data.answer
+      : '```json\n' + JSON.stringify(data.answer, null, 2) + '\n```');
+    if (data.citations?.length) {
+      lines.push('', '## Citations', '');
+      data.citations.forEach((citation, idx) => {
+        const date = citation.publishedDate ? ` (${ResponseFormatter.formatDate(citation.publishedDate)})` : '';
+        lines.push(`${idx + 1}. [${citation.title || citation.url}](${citation.url})${date}`);
+        if (citation.text) {
+          lines.push(`   ${citation.text.replace(/\s+/g, ' ').trim().substring(0, 300)}...`);
+        }
+      });
+    }
+    const cost = ResponseFormatter.formatCost(data.costDollars);
+    if (cost) lines.push('', cost);
+    return lines.join('\n');
   },
   getStartContext: (args) => `Answering: "${args.query}"`,
   progressSteps: [

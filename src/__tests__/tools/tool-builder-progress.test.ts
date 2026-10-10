@@ -289,7 +289,7 @@ describe('Tool Builder Progress Integration', () => {
 
       // Check for completion message on cache hit
       const completionCall = notificationCalls.find(call =>
-        call[0].params?.message === 'Using cached response'
+        (call[0].params as { message?: string } | undefined)?.message === 'Using cached response'
       );
 
       expect(completionCall).toBeDefined();

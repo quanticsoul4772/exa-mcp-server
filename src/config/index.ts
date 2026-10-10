@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { SERVER_VERSION } from '../version.js';
 
 // Load environment variables once at module initialization
 dotenv.config();
@@ -19,7 +20,7 @@ const configSchema = z.object({
   // Server configuration
   server: z.object({
     name: z.string().default('exa-search-server'),
-    version: z.string().default('0.3.6')
+    version: z.string().default(SERVER_VERSION)
   }),
   
   // Logging configuration

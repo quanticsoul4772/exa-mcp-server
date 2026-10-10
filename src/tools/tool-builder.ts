@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ToolRegistry, ToolHandlerExtra } from "./config.js";
-import { ExaCrawlRequest, ExaSearchRequest, ExaSearchResponse } from "../types.js";
+import { ExaSearchRequest, ExaSearchResponse } from "../types.js";
 import { getSharedExaClient, handleExaError } from "../utils/exaClient.js";
 import { getGlobalRateLimiter } from "../utils/rateLimiter.js";
 import { createRequestLogger, generateRequestId } from "../utils/pinoLogger.js";
@@ -24,6 +24,17 @@ type ToolConfig<T extends z.ZodObject<z.ZodRawShape>, TRequest, TResponse> = {
   /** Optional progress steps for progress tracking */
   progressSteps?: string[];
 };
+
+/**
+ * True when the request asks Exa to fetch fresh content (maxAgeHours 0),
+ * either at the top level (/contents) or under contents (/search).
+ * Such requests must not be answered from the local response cache.
+ */
+export function requestsFreshContent(request: unknown): boolean {
+  if (request === null || typeof request !== 'object') return false;
+  const r = request as { maxAgeHours?: unknown; contents?: { maxAgeHours?: unknown } };
+  return r.maxAgeHours === 0 || r.contents?.maxAgeHours === 0;
+}
 
 /**
  * Type helper to check if a response has results array
@@ -108,8 +119,10 @@ export function createTool<
         // Get cache instance using lazy initialization
         const cache = getGlobalCache();
         
-        // Check cache first
-        const cachedResponse = cache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
+        // Check cache first, unless the caller asked for fresh content
+        const cachedResponse = requestsFreshContent(config.createRequest(validatedArgs))
+          ? null
+          : cache.get<TResponse>(config.endpoint, config.createRequest(validatedArgs));
         if (cachedResponse) {
           logger.log(`Cache hit for ${config.name}`);
           if (progress) {
@@ -171,7 +184,10 @@ export function createTool<
 
         // Check for results array (search responses) - use proper type guard
         if (hasResults(response.data)) {
-          if (response.data.results.length === 0) {
+          // /contents reports per-URL failures in statuses; let the formatter show them
+          const hasStatuses = Array.isArray((response.data as { statuses?: unknown[] }).statuses)
+            && ((response.data as { statuses?: unknown[] }).statuses?.length ?? 0) > 0;
+          if (response.data.results.length === 0 && !hasStatuses) {
             logger.log(`Warning: No results found for ${config.name}`);
             return {
               content: [{
@@ -225,13 +241,6 @@ function getQueryFromArgs<T extends Record<string, unknown>>(args: T): string {
 }
 
 /**
- * Helper function to extract URL from validated args safely
- */
-function getUrlFromArgs<T extends Record<string, unknown>>(args: T): string {
-  return 'url' in args && typeof args.url === 'string' ? args.url : 'crawl request';
-}
-
-/**
  * Helper function to create search-based tools (web search, research papers, etc.)
  * Provides full type safety during tool creation
  */
@@ -252,56 +261,6 @@ export function createSearchTool<T extends z.ZodObject<z.ZodRawShape>>(
     endpoint: '/search', // Using the API endpoint directly
     createRequest,
     formatResponse: formatResponse || ((data: ExaSearchResponse, toolName: string) => ResponseFormatter.formatSearchResponse(data, toolName)),
-    getStartContext: (args) => getQueryFromArgs(args),
-    progressSteps
-  });
-}
-
-/**
- * Helper function to create crawl-based tools (URL content extraction)
- * Provides full type safety during tool creation
- */
-export function createCrawlTool<T extends z.ZodObject<z.ZodRawShape>>(
-  name: string,
-  description: string,
-  schema: T,
-  enabled: boolean,
-  createRequest: (args: z.infer<T>) => ExaCrawlRequest,
-  progressSteps?: string[]
-): ToolRegistry {
-  return createTool({
-    name,
-    description,
-    schema,
-    enabled,
-    endpoint: '/contents', // Using the API endpoint directly
-    createRequest,
-    formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCrawlResponse(data.results),
-    getStartContext: (args) => getUrlFromArgs(args),
-    progressSteps
-  });
-}
-
-/**
- * Helper function to create competitor finder tools
- * Provides full type safety during tool creation
- */
-export function createCompetitorFinderTool<T extends z.ZodObject<z.ZodRawShape>>(
-  name: string,
-  description: string,
-  schema: T,
-  enabled: boolean,
-  createRequest: (args: z.infer<T>) => ExaSearchRequest,
-  progressSteps?: string[]
-): ToolRegistry {
-  return createTool({
-    name,
-    description,
-    schema,
-    enabled,
-    endpoint: '/search', // Using the API endpoint directly
-    createRequest,
-    formatResponse: (data: ExaSearchResponse) => ResponseFormatter.formatCompetitorResponse(data.results),
     getStartContext: (args) => getQueryFromArgs(args),
     progressSteps
   });

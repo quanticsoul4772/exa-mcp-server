@@ -2,13 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Appends one line to the Exa usage CSV.
+ * Appends one line to the Exa usage CSV named by EXA_USAGE_CSV.
+ * Does nothing when EXA_USAGE_CSV is unset.
  * Status values: ok | quota_error | rate_limit | unavailable | error
  */
 export function logExaUsage(toolName: string, status: string, note = ""): void {
+  const csvPath = process.env.EXA_USAGE_CSV;
+  if (!csvPath) return;
   try {
-    const csvPath = process.env.EXA_USAGE_CSV ??
-      path.join("/home/agent/workspace/metrics", "exa-usage.csv");
 
     const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
     const safeNote = note.replace(/,/g, ";").replace(/\n/g, " ").slice(0, 120);

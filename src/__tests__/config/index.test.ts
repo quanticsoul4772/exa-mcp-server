@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { SERVER_VERSION } from '../../version.js';
 
 // We need to isolate the config module for each test
 describe('Configuration Management', () => {
@@ -53,7 +54,7 @@ describe('Configuration Management', () => {
       expect(config.exa.timeout).toBe(25000);
       expect(config.exa.retries).toBe(3);
       expect(config.server.name).toBe('exa-search-server');
-      expect(config.server.version).toBe('0.3.6');
+      expect(config.server.version).toBe(SERVER_VERSION);
     });
     
     it('should fail validation when API key is missing', () => {

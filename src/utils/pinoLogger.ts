@@ -1,5 +1,6 @@
 import pino, { Logger, LoggerOptions } from 'pino';
 import { getConfig } from '../config/index.js';
+import { SERVER_VERSION } from '../version.js';
 
 
 /**
@@ -13,7 +14,7 @@ function createPinoLogger(): Logger {
     // Fallback configuration for testing environments where config might not be available
     config = {
       logging: { level: 'DEBUG', redactLogs: false },
-      server: { name: 'exa-mcp-server', version: '0.3.6' },
+      server: { name: 'exa-mcp-server', version: SERVER_VERSION },
       environment: { nodeEnv: process.env.NODE_ENV || 'development' }
     };
   }

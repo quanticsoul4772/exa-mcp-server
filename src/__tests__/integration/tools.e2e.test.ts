@@ -146,95 +146,311 @@ describe('Tool E2E Tests', () => {
     });
   });
 
-  describe('Research Paper Search Tool', () => {
-    it('should search research papers with custom parameters', async () => {
+  describe('Web Search filters (replacing removed specialized tools)', () => {
+    it('sends category publication for research papers', async () => {
       e2e.mockSuccessfulSearch([
-        {
-          id: 'paper1',
-          title: 'Machine Learning Research',
-          url: 'https://arxiv.org/paper1',
-          publishedDate: '2024-01-15',
-          author: 'Research Team',
-          text: 'Abstract: This paper discusses machine learning...'
-        }
+        { id: 'paper1', title: 'Machine Learning Research', url: 'https://arxiv.org/paper1', text: 'Abstract...' }
       ]);
-
-      const { researchPaperSearchTool } = await import('../../tools/researchPaperSearch.js');
-
-      const result = await researchPaperSearchTool.handler({
-        query: 'machine learning',
-        numResults: 1,
-        maxCharacters: 500
-      }, {});
-
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'machine learning', category: 'publication', numResults: 1 }, {});
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Machine Learning Research');
-      
-      // Verify correct parameters were sent
-      const requests = e2e.getRequestHistory();
-      expect(requests[0].body).toMatchObject({
-        query: expect.stringContaining('machine learning'),
-        numResults: 1
-      });
+      expect(e2e.getRequestHistory()[0].body).toMatchObject({ category: 'publication', numResults: 1 });
     });
-  });
 
-  describe('Company Research Tool', () => {
-    it('should research company information', async () => {
+    it('rejects the retired research paper category', async () => {
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'x', category: 'research paper' }, {});
+      expect(result.isError).toBe(true);
+    });
+
+    it('searches X with includeDomains and date filters', async () => {
+      e2e.mockSuccessfulSearch([
+        { id: 'tweet1', title: '@user: Test tweet', url: 'https://x.com/user/status/123', text: 'TypeScript' }
+      ]);
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({
+        query: 'TypeScript',
+        includeDomains: ['x.com', 'twitter.com'],
+        startPublishedDate: '2024-01-01T00:00:00.000Z'
+      }, {});
+      expect(result.isError).toBeUndefined();
+      const body = e2e.getRequestHistory()[0].body;
+      expect(body.includeDomains).toEqual(['x.com', 'twitter.com']);
+      expect(body.startPublishedDate).toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('sends company category with subpages, current extras shape and freshness', async () => {
       e2e.mockSuccessfulSearch([
         {
-          id: 'company1',
-          title: 'Example Company - About Us',
-          url: 'https://example.com/about',
-          text: 'Example Company is a leading provider...'
+          id: 'c1', title: 'Example Company', url: 'https://example.com', text: 'About us',
+          extras: { links: ['https://example.com/a'], imageLinks: ['https://example.com/i.png'] }
         }
       ]);
-
-      const { companyResearchTool } = await import('../../tools/companyResearch.js');
-
-      const result = await companyResearchTool.handler({
-        query: 'example.com',
-        subpages: 5
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({
+        query: 'example.com', category: 'company', subpages: 3, subpageTarget: ['about'],
+        includeExtras: true, maxAgeHours: 24, livecrawlTimeout: 5000
       }, {});
-
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('Example Company');
+      expect(result.content[0].text).toContain('https://example.com/i.png');
+      const contents = e2e.getRequestHistory()[0].body.contents;
+      expect(contents).toMatchObject({ subpages: 3, subpageTarget: ['about'], maxAgeHours: 24, livecrawlTimeout: 5000 });
+      expect(contents.extras).toEqual({ links: 20, imageLinks: 10 });
+      expect(contents).not.toHaveProperty('livecrawl');
+    });
+
+    it('rejects maxAgeHours above 720', async () => {
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'x', maxAgeHours: 1000 }, {});
+      expect(result.isError).toBe(true);
+    });
+
+    it('shows synthesized output, grounding and cost when outputSchema is set', async () => {
+      e2e.getServer().mock('POST', '/search', {
+        status: 200,
+        data: {
+          requestId: 'r', results: [{ id: '1', title: 'Source', url: 'https://s.com' }],
+          output: { content: { ceo: 'Jane' }, grounding: [{ field: 'ceo', citations: [{ url: 'https://s.com', title: 'Source' }], confidence: 'high' }] },
+          costDollars: { total: 0.012 }
+        }
+      });
+      const { webSearchTool } = await import('../../tools/webSearch.js');
+      const result = await webSearchTool.handler({ query: 'who is CEO', outputSchema: { type: 'object', properties: { ceo: { type: 'string' } } } }, {});
+      const text = result.content[0].text;
+      expect(text).toContain('"ceo": "Jane"');
+      expect(text).toContain('ceo (high confidence): [Source](https://s.com)');
+      expect(text).toContain('Estimated cost: $0.0120');
     });
   });
 
-  describe('URL Crawling Tool', () => {
-    it('should crawl and extract content from URL', async () => {
+  describe('Web Fetch Tool', () => {
+    it('fetches multiple URLs with current request shape', async () => {
       e2e.mockSuccessfulContents([
-        {
-          id: 'https://example.com/article',
-          title: 'Article Title',
-          url: 'https://example.com/article',
-          text: 'This is the full article content...'
-        }
+        { id: 'https://example.com/article', title: 'Article Title', url: 'https://example.com/article', text: 'This is the full article content...' },
+        { id: 'https://example.com/b', title: 'Second', url: 'https://example.com/b', text: 'Second page' }
       ]);
-
-      const { crawlingTool } = await import('../../tools/crawling.js');
-
-      const result = await crawlingTool.handler({
-        url: 'https://example.com/article'
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({
+        urls: ['https://example.com/article', 'https://example.com/b'],
+        summaryQuery: 'main point', excludeSections: ['footer']
       }, {});
-
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('Article Title');
       expect(result.content[0].text).toContain('full article content');
-      
+      expect(result.content[0].text).toContain('Second page');
+      const body = e2e.getRequestHistory()[0].body;
+      expect(body.urls).toHaveLength(2);
+      expect(body.summary).toEqual({ query: 'main point' });
+      expect(body.text.excludeSections).toEqual(['footer']);
+      expect(body).not.toHaveProperty('livecrawl');
       e2e.assertApiCalled('/contents', 1);
     });
 
-    it('should validate URL format', async () => {
-      const { crawlingTool } = await import('../../tools/crawling.js');
+    it('reports per-URL failures from statuses', async () => {
+      e2e.getServer().mock('POST', '/contents', {
+        status: 200,
+        data: {
+          requestId: 'r', results: [],
+          statuses: [{ id: 'https://dead.example', status: 'error', error: { tag: 'CRAWL_NOT_FOUND', httpStatusCode: 404 } }]
+        }
+      });
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({ urls: ['https://dead.example'] }, {});
+      expect(result.content[0].text).toContain('https://dead.example: CRAWL_NOT_FOUND (HTTP 404)');
+    });
 
-      const result = await crawlingTool.handler({
-        url: 'not-a-valid-url'
-      }, {});
-
+    it('validates URL format', async () => {
+      const { webFetchTool } = await import('../../tools/webFetch.js');
+      const result = await webFetchTool.handler({ urls: ['not-a-valid-url'] }, {});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Invalid');
+    });
+  });
+
+  describe('Answer Tool', () => {
+    it('sends only fields /answer accepts and formats citations without scores', async () => {
+      e2e.getServer().mock('POST', '/answer', {
+        status: 200,
+        data: {
+          requestId: 'r', answer: 'Paris.',
+          citations: [{ url: 'https://b.com/paris', title: 'Paris', publishedDate: '2024-01-15' }],
+          costDollars: { total: 0.005 }
+        }
+      });
+      const { answerTool } = await import('../../tools/answer.js');
+      const result = await answerTool.handler({ query: 'capital of France', model: 'exa-pro' }, {});
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0].text;
+      expect(text).toContain('Paris.');
+      expect(text).toContain('[Paris](https://b.com/paris)');
+      expect(text).not.toContain('Relevance');
+      expect(text).toContain('Estimated cost: $0.0050');
+      expect(e2e.getRequestHistory()[0].body).toEqual({ query: 'capital of France', text: false, model: 'exa-pro' });
+    });
+  });
+
+  describe('Code Search Tool', () => {
+    it('formats the /context response text', async () => {
+      e2e.getServer().mock('POST', '/context', {
+        status: 200,
+        data: { requestId: 'r', query: 'zod union', response: '## Discriminated unions\nhttps://zod.dev\n\nz.discriminatedUnion(...)' }
+      });
+      const { codeSearchTool } = await import('../../tools/codeSearch.js');
+      const result = await codeSearchTool.handler({ query: 'zod union' }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('z.discriminatedUnion');
+    });
+  });
+
+  describe('Find Similar Tool', () => {
+    it('nests content options under contents', async () => {
+      e2e.getServer().mock('POST', '/findSimilar', {
+        status: 200,
+        data: { requestId: 'r', results: [{ id: '1', title: 'Similar', url: 'https://sim.com', highlights: ['match'] }] }
+      });
+      const { findSimilarTool } = await import('../../tools/findSimilar.js');
+      const result = await findSimilarTool.handler({ url: 'https://example.com', includeText: true }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('Similar');
+      expect(result.content[0].text).not.toContain('NaN');
+      const body = e2e.getRequestHistory()[0].body;
+      expect(body).not.toHaveProperty('text');
+      expect(body.contents).toMatchObject({ text: { maxCharacters: 1000 }, highlights: { maxCharacters: 500 } });
+    });
+  });
+
+  describe('Agent Run Tool', () => {
+    it('creates a run, polls until completed, and formats output', async () => {
+      let polls = 0;
+      e2e.getServer().mock('POST', '/agent/runs', { status: 200, data: { id: 'agent_run_1', status: 'queued', stopReason: null } });
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_1', () => {
+        polls++;
+        return polls < 2
+          ? { status: 200, data: { id: 'agent_run_1', status: 'running', stopReason: null } }
+          : {
+              status: 200,
+              data: {
+                id: 'agent_run_1', status: 'completed', stopReason: 'schema_satisfied',
+                output: { text: 'Final report', structured: { n: 3 }, grounding: [{ field: 'n', citations: [{ url: 'https://src.com' }], confidence: 'medium' }] },
+                costDollars: { total: 1.25 }
+              }
+            };
+      });
+      const { agentRunTool, agentRunTiming } = await import('../../tools/agentRun.js');
+      agentRunTiming.pollIntervalMs = 1;
+      try {
+        const result = await agentRunTool.handler({ query: 'count things', effort: 'low', maxCostDollars: 2 }, {});
+        expect(result.isError).toBeUndefined();
+        const text = result.content[0].text;
+        expect(text).toContain('Final report');
+        expect(text).toContain('"n": 3');
+        expect(text).toContain('Estimated cost: $1.2500');
+        const create = e2e.getRequestHistory().find(r => r.method === 'POST')!;
+        expect(create.body).toEqual({ query: 'count things', effort: 'low', budget: { maxCostDollars: 2 } });
+      } finally {
+        agentRunTiming.pollIntervalMs = 5000;
+      }
+    });
+
+    it('returns the run id when waitSeconds is reached', async () => {
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_2', { status: 200, data: { id: 'agent_run_2', status: 'running', stopReason: null } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const result = await agentRunTool.handler({ runId: 'agent_run_2', waitSeconds: 0 }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('still running');
+      expect(result.content[0].text).toContain('agent_run_2');
+    });
+
+    it('marks failed runs as errors', async () => {
+      e2e.getServer().mock('GET', '/agent/runs/agent_run_3', { status: 200, data: { id: 'agent_run_3', status: 'failed', stopReason: 'budget_reached' } });
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const result = await agentRunTool.handler({ runId: 'agent_run_3' }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('budget_reached');
+    });
+
+    it('requires query or runId', async () => {
+      const { agentRunTool } = await import('../../tools/agentRun.js');
+      const result = await agentRunTool.handler({}, {});
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('Monitors Tool', () => {
+    it('creates a monitor with schedule and webhook', async () => {
+      e2e.getServer().mock('POST', '/monitors', {
+        status: 201,
+        data: {
+          id: 'mon_1', name: 'jobs', status: 'active', search: { query: 'perf jobs' },
+          trigger: { type: 'interval', period: '1d' }, webhook: { url: 'https://hook.example/x' },
+          nextRunAt: '2026-10-11T00:00:00Z', createdAt: 'now', webhookSecret: 'whsec_1'
+        }
+      });
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const result = await monitorsTool.handler({ action: 'create', name: 'jobs', query: 'perf jobs', period: '1d', webhookUrl: 'https://hook.example/x' }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('mon_1');
+      expect(result.content[0].text).toContain('whsec_1');
+      expect(e2e.getRequestHistory()[0].body).toEqual({
+        name: 'jobs', search: { query: 'perf jobs' }, trigger: { type: 'interval', period: '1d' }, webhook: { url: 'https://hook.example/x' }
+      });
+    });
+
+    it('requires webhookUrl for create', async () => {
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const result = await monitorsTool.handler({ action: 'create', query: 'x' }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('webhookUrl');
+    });
+
+    it('pauses a monitor with PATCH and reads a run', async () => {
+      e2e.getServer().mock('PATCH', '/monitors/mon_1', {
+        status: 200,
+        data: { id: 'mon_1', name: null, status: 'paused', search: { query: 'q' }, trigger: null, webhook: { url: 'https://h' }, nextRunAt: null, createdAt: 'now' }
+      });
+      e2e.getServer().mock('GET', '/monitors/mon_1/runs/run_1', {
+        status: 200,
+        data: {
+          id: 'run_1', monitorId: 'mon_1', status: 'completed', failReason: null, createdAt: 'now',
+          output: { results: [{ id: '1', title: 'New posting', url: 'https://jobs.example/1' }] }
+        }
+      });
+      const { monitorsTool } = await import('../../tools/monitors.js');
+      const paused = await monitorsTool.handler({ action: 'update', monitorId: 'mon_1', status: 'paused' }, {});
+      expect(paused.content[0].text).toContain('paused');
+      const run = await monitorsTool.handler({ action: 'get_run', monitorId: 'mon_1', runId: 'run_1' }, {});
+      expect(run.content[0].text).toContain('New posting');
+    });
+  });
+
+  describe('Websets Tool', () => {
+    it('creates a webset under /websets/v0 with criteria and enrichments', async () => {
+      e2e.getServer().mock('POST', '/websets/v0/websets', {
+        status: 201,
+        data: {
+          id: 'ws_1', status: 'running', title: null, externalId: null, createdAt: 'now',
+          searches: [{ id: 's1', status: 'running', query: 'AI security startups' }]
+        }
+      });
+      const { websetsTool } = await import('../../tools/websets.js');
+      const result = await websetsTool.handler({
+        action: 'create', query: 'AI security startups', count: 5, entityType: 'company',
+        criteria: ['US-based'], enrichments: [{ description: 'CEO name', format: 'text' }]
+      }, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('ws_1');
+      expect(e2e.getRequestHistory()[0].body).toEqual({
+        search: { query: 'AI security startups', count: 5, entity: { type: 'company' }, criteria: [{ description: 'US-based' }] },
+        enrichments: [{ description: 'CEO name', format: 'text' }]
+      });
+    });
+
+    it('surfaces plan errors from the API', async () => {
+      e2e.getServer().mock('GET', '/websets/v0/websets', { status: 401, data: { message: 'Upgrade to a Pro plan to get access.' } });
+      const { websetsTool } = await import('../../tools/websets.js');
+      const result = await websetsTool.handler({ action: 'list' }, {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Pro plan');
     });
   });
 
@@ -296,10 +512,10 @@ describe('Tool E2E Tests', () => {
         text: 'This is the complete article content with much more detail...'
       }]);
 
-      const { crawlingTool } = await import('../../tools/crawling.js');
+      const { webFetchTool } = await import('../../tools/webFetch.js');
 
-      const crawlResult = await crawlingTool.handler({
-        url: 'https://example.com/article'
+      const crawlResult = await webFetchTool.handler({
+        urls: ['https://example.com/article']
       }, {});
 
       expect(crawlResult.isError).toBeUndefined();
@@ -337,71 +553,6 @@ describe('Tool E2E Tests', () => {
       // In real E2E with actual cache, this would be 1
       const requests = e2e.getRequestHistory();
       expect(requests.length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe('Twitter Search Tool', () => {
-    it('should search Twitter/X with date filters', async () => {
-      e2e.mockSuccessfulSearch([
-        {
-          id: 'tweet1',
-          title: '@user: Test tweet',
-          url: 'https://x.com/user/status/123',
-          publishedDate: '2024-01-15',
-          text: 'This is a test tweet about TypeScript'
-        }
-      ]);
-
-      const { twitterSearchTool } = await import('../../tools/twitterSearch.js');
-
-      const result = await twitterSearchTool.handler({
-        query: 'TypeScript',
-        numResults: 1,
-        startPublishedDate: '2024-01-01T00:00:00.000Z',
-        endPublishedDate: '2024-01-31T23:59:59.999Z'
-      }, {});
-
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('Test tweet');
-      
-      // Verify date parameters were included
-      const requests = e2e.getRequestHistory();
-      expect(requests[0].body).toHaveProperty('startPublishedDate');
-      expect(requests[0].body).toHaveProperty('endPublishedDate');
-    });
-  });
-
-  describe('Competitor Finder Tool', () => {
-    it('should find competitors with domain exclusion', async () => {
-      e2e.mockSuccessfulSearch([
-        {
-          id: 'comp1',
-          title: 'Competitor Company',
-          url: 'https://competitor.com',
-          text: 'We provide similar services...'
-        },
-        {
-          id: 'comp2',
-          title: 'Another Competitor',
-          url: 'https://another-competitor.com',
-          text: 'Leading provider of...'
-        }
-      ]);
-
-      const { competitorFinderTool } = await import('../../tools/competitorFinder.js');
-
-      const result = await competitorFinderTool.handler({
-        query: 'web search API',
-        excludeDomain: 'exa.ai',
-        numResults: 2
-      }, {});
-
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('Competitor Company');
-      
-      // Verify exclude domain was sent
-      const requests = e2e.getRequestHistory();
-      expect(requests[0].body).toHaveProperty('excludeDomains');
     });
   });
 });

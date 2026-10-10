@@ -1,7 +1,7 @@
 {
   "name": "exa-mcp-server",
-  "version": "0.4.0",
-  "description": "A Model Context Protocol server with Exa AI for web search, code search, academic papers, and Twitter/X.com search. Supports deep search types (instant/fast/auto/deep), structured outputs, freshness control, summaries, code-optimized search, and configurable tool selection.",
+  "version": "0.5.0",
+  "description": "MCP server for Exa AI: web search with filters and synthesized output, page fetching, cited answers, code search, research agent runs, scheduled monitors, and Websets.",
   "type": "module",
   "repository": {
     "type": "git",
@@ -35,8 +35,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint 'src/**/*.ts'",
-    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -65,7 +65,7 @@
     "express": "^5.1.0",
     "globals": "^17.4.0",
     "jest": "^30.3.0",
-    "ts-jest": "^29.1.2",
+    "ts-jest": "^29.4.14",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   },
