@@ -39,9 +39,14 @@ export function freshness(args: ExaFreshnessOptions): ExaFreshnessOptions {
 /**
  * Summary option: a query-guided summary object, or true for a default summary
  */
-export function summaryOption(include: boolean | undefined, query?: string): ExaSummaryOptions | true | undefined {
-  if (!include && !query) return undefined;
-  return query ? { query } : true;
+export function summaryOption(
+  include: boolean | undefined,
+  query?: string,
+  schema?: Record<string, unknown>
+): ExaSummaryOptions | true | undefined {
+  if (!include && !query && !schema) return undefined;
+  if (!query && !schema) return true;
+  return { ...(query && { query }), ...(schema && { schema }) };
 }
 
 /**

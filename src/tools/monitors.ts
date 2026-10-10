@@ -37,9 +37,9 @@ interface ExaList<T> {
 }
 
 const monitorsSchema = z.object({
-  action: z.enum(['create', 'list', 'get', 'update', 'delete', 'list_runs', 'get_run'])
-    .describe("Operation: create | list | get | update | delete | list_runs | get_run"),
-  monitorId: z.string().optional().describe("Monitor id (get, update, delete, list_runs, get_run)"),
+  action: z.enum(['create', 'list', 'get', 'update', 'delete', 'trigger', 'list_runs', 'get_run'])
+    .describe("Operation: create | list | get | update | delete | trigger | list_runs | get_run"),
+  monitorId: z.string().optional().describe("Monitor id (get, update, delete, trigger, list_runs, get_run)"),
   runId: z.string().optional().describe("Run id (get_run)"),
   name: z.string().optional().describe("Display name (create, update)"),
   query: z.string().min(1).optional().describe("Search query the monitor runs (create; update)"),
@@ -84,7 +84,7 @@ export const monitorsTool = createActionTool({
   title: "Exa Monitors",
   // Bundles create/update/delete, so it carries the worst-case hints
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-  description: "Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, list_runs, get_run (read a run's results here).",
+  description: "Manage Exa Monitors: searches that run on a schedule (every 1h to Nd) and send results to an HTTPS webhook. Actions: create, list, get, update (rename, change query/schedule, pause/resume), delete, trigger (run now, even if paused), list_runs, get_run (read a run's results here).",
   schema: monitorsSchema,
   enabled: false,
   run: async (args, exa) => {
@@ -143,6 +143,14 @@ export const monitorsTool = createActionTool({
         return page.data.length
           ? `${page.data.length} run(s) for ${id}:\n${page.data.map(r => `- ${r.id}: ${r.status}${r.failReason ? ` (${r.failReason})` : ''}, ${r.createdAt}`).join('\n')}${pageNote(page)}`
           : `No runs yet for ${id}.`;
+      }
+      case 'trigger': {
+        const id = requireArg(args.monitorId, 'monitorId', 'trigger');
+        const r = await exa.post<{ triggered: boolean }>(`/monitors/${pathSegment(id)}/trigger`, {});
+        if (!r.triggered) {
+          throw new Error(`Exa did not trigger monitor ${id}`);
+        }
+        return `Monitor ${id} triggered; read the result with list_runs and get_run.`;
       }
       case 'get_run': {
         const id = requireArg(args.monitorId, 'monitorId', 'get_run');

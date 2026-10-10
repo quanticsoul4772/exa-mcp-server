@@ -12,10 +12,10 @@ export const DEFAULT_TEXT_TOTAL = 100000;
 
 /**
  * With relevantTo only the best passages are returned, so more of each page
- * is fetched to choose from: 50000 per URL, at most 500000 in total (well
+ * is fetched to choose from: 200000 per URL, at most 500000 in total (well
  * inside one Voyage rerank request)
  */
-export const RELEVANT_TEXT_PER_URL = 50000;
+export const RELEVANT_TEXT_PER_URL = 200000;
 export const RELEVANT_TEXT_TOTAL = 500000;
 
 /**
@@ -28,6 +28,20 @@ export function textLimitPerUrl(urlCount: number, requested?: number, relevantTo
     ? [RELEVANT_TEXT_PER_URL, RELEVANT_TEXT_TOTAL]
     : [DEFAULT_TEXT_PER_URL, DEFAULT_TEXT_TOTAL];
   return Math.min(perUrl, Math.floor(total / Math.max(1, urlCount)));
+}
+
+/**
+ * Mark results whose text reached the character limit: the page continues
+ * past what was fetched. Exa does not report truncation, so a text whose
+ * length is within 1% of the limit is treated as cut.
+ */
+export function markTruncated(data: ExaCrawlResponse, limit: number): ExaCrawlResponse {
+  return {
+    ...data,
+    results: data.results.map(r => r.text !== undefined && r.text.length >= limit * 0.99
+      ? { ...r, truncatedAt: limit }
+      : r)
+  };
 }
 
 const webFetchSchema = z.object({
@@ -54,6 +68,8 @@ const webFetchSchema = z.object({
     .describe("Pick highlights relevant to this query (implies includeHighlights)"),
   includeSummary: z.boolean().optional().default(false)
     .describe("Include an LLM-generated summary per URL"),
+  summarySchema: z.record(z.any()).optional()
+    .describe("JSON Schema for a structured summary per result (implies includeSummary)"),
   summaryQuery: z.string().optional()
     .describe("Guide each summary with this question (implies includeSummary)"),
   includeExtras: z.boolean().optional().default(false)
@@ -75,7 +91,7 @@ export const webFetchTool = createTool({
   enabled: true,
   endpoint: '/contents',
   createRequest: (args): ExaCrawlRequest => {
-    const summary = summaryOption(args.includeSummary, args.summaryQuery);
+    const summary = summaryOption(args.includeSummary, args.summaryQuery, args.summarySchema);
     const highlights = highlightsOption(args.includeHighlights, args.highlightsQuery);
     return {
       urls: args.urls,
@@ -95,7 +111,8 @@ export const webFetchTool = createTool({
       ...(args.subpageTarget && { subpageTarget: args.subpageTarget })
     };
   },
-  postProcess: async (data: ExaCrawlResponse, args, { signal }) => {
+  postProcess: async (rawData: ExaCrawlResponse, args, { signal }) => {
+    const data = markTruncated(rawData, textLimitPerUrl(args.urls.length, args.textMaxCharacters, args.relevantTo !== undefined));
     if (!args.relevantTo) return data;
     if (!args.includeText) {
       throw new Error("relevantTo needs page text; it cannot be used with includeText: false");

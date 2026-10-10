@@ -18,6 +18,8 @@ export interface ExaAgentRun {
   id: string;
   status: AgentRunStatus;
   stopReason: string | null;
+  /** The canonicalized create request, echoed back */
+  request?: { query?: string; effort?: string } | null;
   createdAt?: string;
   completedAt?: string | null;
   output?: {
@@ -30,11 +32,28 @@ export interface ExaAgentRun {
 
 const TERMINAL: ReadonlySet<AgentRunStatus> = new Set(['completed', 'failed', 'cancelled']);
 
+/** Exa Connect data providers an agent run can query (max 5 per run) */
+export const DATA_SOURCES = ['fiber', 'financial_datasets', 'similarweb', 'baselayer', 'affiliate', 'particle', 'jinko', 'polymarket', 'macrobond'] as const;
+
 const agentRunSchema = z.object({
+  action: z.enum(['run', 'cancel', 'stop', 'list']).optional().default('run')
+    .describe("run (default): start a run, or resume waiting on runId. cancel: end runId now. stop: end an 'ultra' runId gracefully, keeping partial output. list: recent runs"),
   query: z.string().min(1).optional()
-    .describe("The research task or question. Required unless runId is given."),
+    .describe("The research task or question. Required to start a run."),
   runId: z.string().min(1).optional()
-    .describe("Resume waiting on an existing run (from an earlier agent_run call) instead of starting a new one"),
+    .describe("An existing run: resume waiting on it (action run), or cancel/stop it"),
+  dataSources: z.array(z.enum(DATA_SOURCES)).min(1).max(5).optional()
+    .describe("Extra data providers for the agent to query (Exa Connect), e.g. ['similarweb', 'financial_datasets']"),
+  inputData: z.array(z.record(z.any())).optional()
+    .describe("Records for the agent to work from, e.g. a list of companies to enrich"),
+  inputExclusion: z.array(z.record(z.any())).optional()
+    .describe("Records the agent must leave out of its results, e.g. companies already known"),
+  metadata: z.record(z.string()).optional()
+    .describe("Your own key/value labels stored with the run"),
+  limit: z.coerce.number().int().min(1).max(100).optional()
+    .describe("With action list: runs per page"),
+  cursor: z.string().optional()
+    .describe("With action list: cursor from the previous page"),
   effort: z.enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'auto', 'ultra']).optional()
     .describe("How much work the agent does (Exa default 'auto'). Higher effort costs more."),
   systemPrompt: z.string().optional()
@@ -64,7 +83,15 @@ function buildCreateRequest(args: AgentRunArgs): Record<string, unknown> {
     ...(args.systemPrompt && { systemPrompt: args.systemPrompt }),
     ...(args.outputSchema && { outputSchema: args.outputSchema }),
     ...(args.previousRunId && { previousRunId: args.previousRunId }),
-    ...(Object.keys(budget).length > 0 && { budget })
+    ...(Object.keys(budget).length > 0 && { budget }),
+    ...(args.dataSources && { dataSources: args.dataSources.map(provider => ({ provider })) }),
+    ...((args.inputData || args.inputExclusion) && {
+      input: {
+        ...(args.inputData && { data: args.inputData }),
+        ...(args.inputExclusion && { exclusion: args.inputExclusion })
+      }
+    }),
+    ...(args.metadata && { metadata: args.metadata })
   };
 }
 
@@ -131,6 +158,55 @@ export async function handleCancel(
   }
 }
 
+interface ExaRunList {
+  data: ExaAgentRun[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+/**
+ * cancel / stop / list: single requests, no polling
+ */
+async function runAction(
+  args: AgentRunArgs,
+  signal: AbortSignal | undefined,
+  logger: ReturnType<typeof createRequestLogger>
+): Promise<ToolResult> {
+  const client = getSharedExaClient();
+  const opts = signal ? { signal } : {};
+  logger.start(`agent_run ${args.action}`);
+  try {
+    if (args.action === 'list') {
+      await getGlobalRateLimiter().queue();
+      const page = (await client.get<ExaRunList>('/agent/runs', {
+        ...opts,
+        params: { ...(args.limit && { limit: args.limit }), ...(args.cursor && { cursor: args.cursor }) }
+      })).data;
+      logger.complete();
+      if (page.data.length === 0) return textResult('No agent runs.');
+      const lines = page.data.map(r => {
+        const cost = typeof r.costDollars?.total === 'number' ? `, $${r.costDollars.total.toFixed(4)}` : '';
+        const query = typeof r.request?.query === 'string' ? ` "${r.request.query.slice(0, 80)}"` : '';
+        return `- ${r.id}: ${r.status}${r.stopReason ? ` (${r.stopReason})` : ''}${cost}, created ${r.createdAt}${query}`;
+      });
+      const more = page.hasMore && page.nextCursor ? `\nMore available: cursor "${page.nextCursor}"` : '';
+      return textResult(`${page.data.length} run(s):\n${lines.join('\n')}${more}`);
+    }
+
+    if (!args.runId) {
+      return textResult(`Invalid arguments for agent_run: runId is required for action '${args.action}'`, true);
+    }
+    await getGlobalRateLimiter().queue();
+    const run = (await client.post<ExaAgentRun>(`/agent/runs/${encodeURIComponent(args.runId)}/${args.action}`, {}, opts)).data;
+    logExaUsage('agent_run', 'ok', args.action ?? '');
+    logger.complete();
+    return textResult(formatAgentRun(run));
+  } catch (error) {
+    logExaUsage('agent_run', 'error', String((error as Error)?.message ?? '').slice(0, 80));
+    return handleExaError(error, 'agent_run', logger);
+  }
+}
+
 function textResult(text: string, isError = false): ToolResult {
   return { content: [{ type: "text", text }], ...(isError && { isError: true }) };
 }
@@ -138,8 +214,8 @@ function textResult(text: string, isError = false): ToolResult {
 export const agentRunTool: ToolRegistry = {
   name: "agent_run",
   title: "Exa Research Agent",
-  // Starts a billed run each call; does not delete anything
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  // Starts billed runs; cancel/stop end a run irreversibly
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   description: "Run an Exa research agent for multi-step research, list building, and structured output with citations. Slower and costlier than exa_search or answer_question (runs can take minutes and cost dollars; set effort and maxCostDollars). Waits up to waitSeconds, then returns the run id; call again with runId to keep waiting. Cancelling a call that started a run cancels that run on Exa; cancelling a call that resumed a run (runId) leaves it running.",
   schema: agentRunSchema,
   enabled: false,
@@ -153,6 +229,9 @@ export const agentRunTool: ToolRegistry = {
       return textResult(`Invalid arguments for agent_run: ${validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')}`, true);
     }
     const validated = validation.data;
+    if (validated.action !== 'run') {
+      return runAction(validated, context.signal, logger);
+    }
     if (!validated.query && !validated.runId) {
       return textResult("Invalid arguments for agent_run: provide query (new run) or runId (existing run)", true);
     }
